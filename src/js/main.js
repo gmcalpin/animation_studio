@@ -176,6 +176,19 @@ function createUI(animationSystem) {
       <button id="play-btn">Play</button>
       <button id="pause-btn">Pause</button>
       <button id="stop-btn">Stop</button>
+      
+      <div style="margin-top: 10px; border-top: 1px solid #555; padding-top: 10px;">
+        <h4>Debug Controls</h4>
+        <button id="frame0-btn">Show Frame 0</button>
+        <button id="frame10-btn">Show Frame 10</button>
+        <button id="frame30-btn">Show Frame 30</button>
+        <button id="reset-btn">Reset Pose</button>
+      </div>
+      
+      <div style="margin-top: 10px; border-top: 1px solid #555; padding-top: 10px;">
+        <h4>State</h4>
+        <div id="animation-state">Not playing</div>
+      </div>
     </div>
   `;
   
@@ -287,6 +300,37 @@ function createUI(animationSystem) {
       console.error('Animation system or timeline not available');
     }
   });
+// Debug button handlers
+  document.getElementById('frame0-btn').addEventListener('click', () => {
+    console.log('Showing frame 0');
+    animationSystem.debugApplyFrame(0);
+  });
+  
+  document.getElementById('frame10-btn').addEventListener('click', () => {
+    console.log('Showing frame 10');
+    animationSystem.debugApplyFrame(10);
+  });
+  
+  document.getElementById('frame30-btn').addEventListener('click', () => {
+    console.log('Showing frame 30');
+    animationSystem.debugApplyFrame(30);
+  });
+  
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    console.log('Resetting pose');
+    animationSystem.resetPose();
+  });
+  
+  // Update animation state display
+  setInterval(() => {
+    if (animationSystem && animationSystem.timelineState) {
+      const stateEl = document.getElementById('animation-state');
+      if (stateEl) {
+        const state = animationSystem.timelineState;
+        stateEl.textContent = `State: ${state.playback}, Time: ${state.currentTime.toFixed(2)}s`;
+      }
+    }
+  }, 100);
   
   console.log('UI controls created');
   return ui;
