@@ -417,11 +417,11 @@ class AnimationSystem {
         console.log("Applying YOLO-specific adjustments to the model");
         
         // Scale the model to better match YOLO proportions
-        const scale = 0.3;
+        const scale = 0.5;
         this.humanoidModel.scene.scale.set(scale, scale, scale);
         
-        // Center the model
-        this.humanoidModel.scene.position.set(0, 0, 0);
+        // Center the model and elevate it slightly
+        this.humanoidModel.scene.position.set(0, 0.5, 0);
       }
     }
     
@@ -628,7 +628,8 @@ class AnimationSystem {
           // This helps keep the model together
           
           // Scale down positions to keep them within reasonable bounds
-          const scaleFactor = 0.05; // Reduce the scale of all movements
+          // Use a much smaller scale factor for YOLO data
+          const scaleFactor = 0.005; // Very small scale factor to keep parts together
           
           joint.position = [
             joint.position[0] * scaleFactor,
