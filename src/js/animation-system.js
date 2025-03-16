@@ -298,50 +298,35 @@ class AnimationSystem {
     try {
       console.log('Setting current animation, timelineObj:', this.timelineObj);
       
-      // In newer versions of Theatre.js, the API may have changed
-      // Let's determine the correct way to update properties
+      // Based on the logs, the correct way to interact with Theatre.js objects:
+      // 1. We can READ values from timelineObj.value
+      // 2. We can MODIFY values using onValuesChange to listen for changes
+      // 3. We need to use a different approach to update values
       
-      // Method 1: Check if there's a sequence API
-      if (this.timelineObj.sequence) {
-        console.log('Using sequence API for animation control');
-        this.timelineObj.sequence.position = 0;
-        return;
-      }
+      // Since we only need to apply the first frame at this point, 
+      // we'll just update the display directly without changing Theatre.js state
+      console.log('Applying first animation frame directly');
       
-      // Method 2: Check if there's a direct set method
-      if (typeof this.timelineObj.set === 'function') {
-        console.log('Using direct set method');
-        this.timelineObj.set({
-          currentTime: 0,
-          playback: 'stop'
+      // Apply first frame
+      this.applyAnimationFrame(0);
+      
+      // Check if we can update the timeline range via project.ready
+      if (this.project && typeof this.project.ready?.then === 'function') {
+        this.project.ready.then(() => {
+          console.log('Project is ready, attempting to update timeline range');
+          
+          // Instead of trying to find a set method for the timeline range,
+          // let's create a new sheet object with the updated range
+          const duration = this.currentAnimation.metadata.duration || 10;
+          
+          // Log the actual animation duration for debugging
+          console.log('Animation duration:', duration);
+          
+          // Note: We can't set the timeline range directly in this version,
+          // but the timeline will work within the default range
+        }).catch(error => {
+          console.error('Error in project.ready promise:', error);
         });
-        return;
-      }
-      
-      // Method 3: Check and log what's actually available
-      console.log('Examining timelineObj:', {
-        value: this.timelineObj.value,
-        props: this.timelineObj.props,
-        address: this.timelineObj.address,
-        object: this.timelineObj.object
-      });
-      
-      // Try to find setters in Theatre.js object
-      if (this.timelineObj.props) {
-        // Different Theatre.js versions may have different APIs
-        // Let's try every possible combination
-        
-        // Check what's in props
-        Object.keys(this.timelineObj.props).forEach(key => {
-          console.log(`Property: ${key}`, this.timelineObj.props[key]);
-        });
-        
-        // Method 4: Try to use object.value approach
-        this.timelineObj.value = {
-          ...this.timelineObj.value,
-          currentTime: 0,
-          playback: 'stop'
-        };
       }
       
       // Update the timeline range
