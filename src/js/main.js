@@ -164,7 +164,13 @@ function createUI(animationSystem) {
   document.getElementById('play-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        animationSystem.timelineObj.set({ playback: 'play' });
+        // Use the proper Theatre.js API
+        if (animationSystem.timelineObj.props && animationSystem.timelineObj.props.playback) {
+          animationSystem.timelineObj.props.playback.set('play');
+          console.log('Play button clicked');
+        } else {
+          console.error('Cannot find playback property on timeline object');
+        }
       } catch (error) {
         console.error('Error playing animation:', error);
       }
@@ -176,7 +182,13 @@ function createUI(animationSystem) {
   document.getElementById('pause-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        animationSystem.timelineObj.set({ playback: 'pause' });
+        // Use the proper Theatre.js API
+        if (animationSystem.timelineObj.props && animationSystem.timelineObj.props.playback) {
+          animationSystem.timelineObj.props.playback.set('pause');
+          console.log('Pause button clicked');
+        } else {
+          console.error('Cannot find playback property on timeline object');
+        }
       } catch (error) {
         console.error('Error pausing animation:', error);
       }
@@ -188,7 +200,13 @@ function createUI(animationSystem) {
   document.getElementById('stop-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        animationSystem.timelineObj.set({ playback: 'stop' });
+        // Use the proper Theatre.js API
+        if (animationSystem.timelineObj.props && animationSystem.timelineObj.props.playback) {
+          animationSystem.timelineObj.props.playback.set('stop');
+          console.log('Stop button clicked');
+        } else {
+          console.error('Cannot find playback property on timeline object');
+        }
       } catch (error) {
         console.error('Error stopping animation:', error);
       }
