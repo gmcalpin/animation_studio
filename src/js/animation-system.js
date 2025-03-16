@@ -495,8 +495,11 @@ class AnimationSystem {
       // Interpolate between frames and apply
       const interpolatedFrame = this.interpolateFrames(frame1, frame2, alpha);
       
+      // Apply scaling and normalization to keep the model together
+      const normalizedFrame = this.normalizeFrame(interpolatedFrame);
+      
       if (this.humanoidModel && typeof this.humanoidModel.applyPose === 'function') {
-        this.humanoidModel.applyPose(interpolatedFrame);
+        this.humanoidModel.applyPose(normalizedFrame);
       } else {
         console.error('Human model or applyPose method not available');
       }
@@ -513,6 +516,65 @@ class AnimationSystem {
    * @returns {Object} Interpolated frame
    */
   interpolateFrames(frame1, frame2, alpha) {
+/**
+   * Normalize a frame to ensure the model stays together
+   * @param {Object} frame - Animation frame
+   * @returns {Object} Normalized frame
+   */
+  normalizeFrame(frame) {
+    if (!frame || !frame.joints) {
+      return frame;
+    }
+    
+    try {
+      const normalizedFrame = {
+        joints: { ...frame.joints }
+      };
+      
+      // Ensure all positions are within reasonable bounds
+      const MAX_DISTANCE = 0.5; // Maximum distance from origin in model space
+      
+      Object.keys(normalizedFrame.joints).forEach(jointName => {
+        const joint = normalizedFrame.joints[jointName];
+        
+        // Normalize positions if they exist
+        if (joint.position) {
+          // Scale down extreme positions
+          joint.position = joint.position.map(value => {
+            if (Math.abs(value) > MAX_DISTANCE) {
+              return Math.sign(value) * MAX_DISTANCE;
+            }
+            return value;
+          });
+        }
+        
+        // Ensure rotations are valid quaternions
+        if (joint.rotation) {
+          // Make sure quaternion is normalized
+          const magnitude = Math.sqrt(
+            joint.rotation[0] * joint.rotation[0] +
+            joint.rotation[1] * joint.rotation[1] +
+            joint.rotation[2] * joint.rotation[2] +
+            joint.rotation[3] * joint.rotation[3]
+          );
+          
+          // If magnitude is too small or NaN, replace with identity quaternion
+          if (isNaN(magnitude) || magnitude < 0.1) {
+            joint.rotation = [0, 0, 0, 1];
+          } 
+          // Otherwise normalize the quaternion
+          else if (Math.abs(magnitude - 1.0) > 0.01) {
+            joint.rotation = joint.rotation.map(value => value / magnitude);
+          }
+        }
+      });
+      
+      return normalizedFrame;
+    } catch (error) {
+      console.error('Error normalizing frame:', error);
+      return frame; // Return original frame as fallback
+    }
+  }
     try {
       const result = {
         joints: {}
