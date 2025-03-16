@@ -414,6 +414,43 @@ class GenericHumanoidModel {
     this.createMesh();
     return this;
   }
+/**
+   * Re-initialize the skeleton binding
+   * This can help when the model parts become detached
+   */
+  initializeSkeleton() {
+    console.log('Re-initializing model skeleton binding');
+    
+    if (!this.mesh || !this.skeleton) {
+      console.error('Cannot re-initialize: mesh or skeleton missing');
+      return this;
+    }
+    
+    try {
+      // Ensure the mesh is properly bound to the skeleton
+      this.mesh.bind(this.skeleton);
+      
+      // Ensure all bones are in their default position
+      this.skeleton.bones.forEach(bone => {
+        if (bone.name !== 'Root') {
+          // Reset rotation to identity
+          bone.quaternion.set(0, 0, 0, 1);
+        }
+        
+        // Update the bone matrices
+        bone.updateMatrix();
+      });
+      
+      // Update the whole skeleton
+      this.skeleton.update();
+      
+      console.log('Skeleton binding refreshed');
+    } catch (error) {
+      console.error('Error re-initializing skeleton:', error);
+    }
+    
+    return this;
+  }
 }
 
 export { GenericHumanoidModel };
