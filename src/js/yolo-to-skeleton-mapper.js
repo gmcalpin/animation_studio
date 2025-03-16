@@ -262,4 +262,51 @@ class YoloPoseMapper {
       frames
     };
   }
+/**
+   * Process YOLO detection data from the Colab notebook format
+   * @param {Object} yoloData - Data from the Colab notebook
+   * @returns {Object} Animation data in universal format
+   */
+  processYoloData(yoloData) {
+    console.log('Processing YOLO data from Colab notebook format');
+    
+    if (!yoloData || !yoloData.detections || !yoloData.metadata) {
+      console.error('Invalid YOLO data format');
+      return null;
+    }
+    
+    // Convert Colab notebook format to universal format
+    const frames = [];
+    
+    yoloData.detections.forEach((detection, index) => {
+      if (!detection.keypoints) {
+        console.log(`Skipping empty detection at index ${index}`);
+        return;
+      }
+      
+      console.log(`Processing detection ${index} with ${detection.keypoints.length} keypoints`);
+      
+      this.setDetection(
+        detection.keypoints,
+        yoloData.metadata.width,
+        yoloData.metadata.height
+      );
+      
+      const timestamp = detection.timestamp || (index / yoloData.metadata.frameRate);
+      const frame = this.toAnimationFrame(index, timestamp);
+      frames.push(frame);
+    });
+    
+    console.log(`Created ${frames.length} animation frames`);
+    
+    return {
+      metadata: {
+        name: yoloData.metadata.name || "YOLO Animation",
+        frameCount: frames.length,
+        frameRate: yoloData.metadata.frameRate || 30,
+        duration: frames.length / (yoloData.metadata.frameRate || 30)
+      },
+      frames
+    };
+  }
 }
