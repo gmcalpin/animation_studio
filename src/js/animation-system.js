@@ -270,26 +270,52 @@ class AnimationSystem {
     }
     
     try {
-      // Theatre.js objects don't have a direct 'set' method
-      // They expose values through obj.value and can be modified with
-      // obj.address.propertyName.set(value)
-      if (this.timelineObj) {
-        console.log('Updating timeline with Theatre.js API');
+      console.log('Setting current animation, timelineObj:', this.timelineObj);
+      
+      // In newer versions of Theatre.js, the API may have changed
+      // Let's determine the correct way to update properties
+      
+      // Method 1: Check if there's a sequence API
+      if (this.timelineObj.sequence) {
+        console.log('Using sequence API for animation control');
+        this.timelineObj.sequence.position = 0;
+        return;
+      }
+      
+      // Method 2: Check if there's a direct set method
+      if (typeof this.timelineObj.set === 'function') {
+        console.log('Using direct set method');
+        this.timelineObj.set({
+          currentTime: 0,
+          playback: 'stop'
+        });
+        return;
+      }
+      
+      // Method 3: Check and log what's actually available
+      console.log('Examining timelineObj:', {
+        value: this.timelineObj.value,
+        props: this.timelineObj.props,
+        address: this.timelineObj.address,
+        object: this.timelineObj.object
+      });
+      
+      // Try to find setters in Theatre.js object
+      if (this.timelineObj.props) {
+        // Different Theatre.js versions may have different APIs
+        // Let's try every possible combination
         
-        // Get the current timeline properties
-        const props = this.timelineObj.props;
+        // Check what's in props
+        Object.keys(this.timelineObj.props).forEach(key => {
+          console.log(`Property: ${key}`, this.timelineObj.props[key]);
+        });
         
-        // Update currentTime
-        if (props.currentTime) {
-          props.currentTime.set(0);
-        }
-        
-        // Update playback state
-        if (props.playback) {
-          props.playback.set('stop');
-        }
-      } else {
-        console.error('timelineObj is not available', this.timelineObj);
+        // Method 4: Try to use object.value approach
+        this.timelineObj.value = {
+          ...this.timelineObj.value,
+          currentTime: 0,
+          playback: 'stop'
+        };
       }
       
       // Update the timeline range
