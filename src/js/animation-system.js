@@ -858,6 +858,31 @@ if (!this.modelInitialized) {
    * Reset the model to default pose
    */
   resetPose() {
+    try {
+      if (this.humanoidModel) {
+        // Create a default pose with identity rotations for all possible joints
+        const defaultPose = {
+          joints: {}
+        };
+        
+        // Add identity rotations for common joints
+        ['Root', 'Hips', 'Spine', 'Chest', 'Neck', 'Head', 
+         'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
+         'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
+         'LeftUpLeg', 'LeftLeg', 'LeftFoot',
+         'RightUpLeg', 'RightLeg', 'RightFoot'].forEach(jointName => {
+           defaultPose.joints[jointName] = {
+             rotation: [0, 0, 0, 1] // Identity quaternion
+           };
+         });
+        
+        console.log('Resetting model to default pose');
+        this.humanoidModel.applyPose(defaultPose);
+      }
+    } catch (error) {
+      console.error('Error resetting pose:', error);
+    }
+  }
 /**
    * Fix model arms specifically
    * This is a targeted fix for the arm positioning issue
@@ -889,31 +914,6 @@ if (!this.modelInitialized) {
       }
     } catch (error) {
       console.error('Error fixing model arms:', error);
-    }
-  }
-    try {
-      if (this.humanoidModel) {
-        // Create a default pose with identity rotations for all possible joints
-        const defaultPose = {
-          joints: {}
-        };
-        
-        // Add identity rotations for common joints
-        ['Root', 'Hips', 'Spine', 'Chest', 'Neck', 'Head', 
-         'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
-         'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
-         'LeftUpLeg', 'LeftLeg', 'LeftFoot',
-         'RightUpLeg', 'RightLeg', 'RightFoot'].forEach(jointName => {
-           defaultPose.joints[jointName] = {
-             rotation: [0, 0, 0, 1] // Identity quaternion
-           };
-         });
-        
-        console.log('Resetting model to default pose');
-        this.humanoidModel.applyPose(defaultPose);
-      }
-    } catch (error) {
-      console.error('Error resetting pose:', error);
     }
   }
   
