@@ -474,6 +474,18 @@ class AnimationSystem {
    * @param {Number} time - Time in seconds
    */
   applyAnimationFrame(time) {
+// Fix for model parts not moving with skeleton
+    // Before applying any animation, ensure the model is in reset state
+    if (this.shouldResetModel === undefined) {
+      this.shouldResetModel = true;
+    }
+    
+    // Only do this reset once at the beginning
+    if (this.shouldResetModel) {
+      console.log('Performing one-time model reset');
+      this.resetPose();
+      this.shouldResetModel = false;
+    }
     if (!this.currentAnimation) {
       console.warn('No current animation to apply frame');
       return;
@@ -824,13 +836,40 @@ class AnimationSystem {
   resetPose() {
     try {
       if (this.humanoidModel) {
-        // Create a default pose with neutral positions
+        // Create a default pose with neutral positions and rotations
+        // for all possible joints in the skeleton
         const defaultPose = {
           joints: {}
         };
         
-        console.log('Resetting model to default pose');
+        // Add identity rotations for all possible joints
+        // This ensures the model returns to its default T-pose
+        const possibleJoints = [
+          'Root', 'Hips', 'Spine', 'Chest', 'Neck', 'Head',
+          'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
+          'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
+          'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase',
+          'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase'
+        ];
+        
+        possibleJoints.forEach(jointName => {
+          defaultPose.joints[jointName] = {
+            rotation: [0, 0, 0, 1] // Identity quaternion
+          };
+          
+          // Only add position for root
+          if (jointName === 'Root') {
+            defaultPose.joints[jointName].position = [0, 0, 0];
+          }
+        });
+        
+        console.log('Resetting model to default pose with identity rotations');
         this.humanoidModel.applyPose(defaultPose);
+        
+        // Wait a frame to ensure pose is applied
+        setTimeout(() => {
+          console.log('Model reset complete');
+        }, 50);
       }
     } catch (error) {
       console.error('Error resetting pose:', error);
