@@ -446,10 +446,23 @@ class AnimationSystem {
       // Interpolate between frames and apply
       const interpolatedFrame = this.interpolateFrames(frame1, frame2, alpha);
       
-      if (this.humanoidModel && typeof this.humanoidModel.applyPose === 'function') {
-        this.humanoidModel.applyPose(interpolatedFrame);
+      if (this.humanoidModel) {
+        console.log('Applying pose to humanoid model:', this.humanoidModel);
+        
+        if (typeof this.humanoidModel.applyPose === 'function') {
+          try {
+            console.log('Calling applyPose with frame:', interpolatedFrame);
+            this.humanoidModel.applyPose(interpolatedFrame);
+          } catch (poseError) {
+            console.error('Error in applyPose:', poseError);
+          }
+        } else {
+          // Look for the method
+          console.error('applyPose method not found on humanoid model. Available methods:', 
+            Object.getOwnPropertyNames(Object.getPrototypeOf(this.humanoidModel)));
+        }
       } else {
-        console.error('Human model or applyPose method not available');
+        console.error('Human model not available');
       }
     } catch (error) {
       console.error('Error applying animation frame:', error, time);
@@ -606,6 +619,53 @@ class AnimationSystem {
     } catch (error) {
       console.error('Error loading test animation:', error);
       return -1;
+    }
+  }
+/**
+   * For debugging: directly apply a specific frame
+   */
+  debugApplyFrame(frameIndex) {
+    if (!this.currentAnimation || !this.currentAnimation.frames) {
+      console.error('No animation loaded or no frames available');
+      return;
+    }
+    
+    if (frameIndex < 0 || frameIndex >= this.currentAnimation.frames.length) {
+      console.error(`Invalid frame index: ${frameIndex}. Animation has ${this.currentAnimation.frames.length} frames.`);
+      return;
+    }
+    
+    const frame = this.currentAnimation.frames[frameIndex];
+    console.log(`Manually applying frame ${frameIndex}:`, frame);
+    
+    try {
+      if (this.humanoidModel && typeof this.humanoidModel.applyPose === 'function') {
+        this.humanoidModel.applyPose(frame);
+        console.log('Frame applied successfully');
+      } else {
+        console.error('Human model or applyPose method not available for debugging');
+      }
+    } catch (error) {
+      console.error('Error applying debug frame:', error);
+    }
+  }
+  
+  /**
+   * Reset the model to default pose
+   */
+  resetPose() {
+    try {
+      if (this.humanoidModel) {
+        // Create a default pose with neutral positions
+        const defaultPose = {
+          joints: {}
+        };
+        
+        console.log('Resetting model to default pose');
+        this.humanoidModel.applyPose(defaultPose);
+      }
+    } catch (error) {
+      console.error('Error resetting pose:', error);
     }
   }
 }
