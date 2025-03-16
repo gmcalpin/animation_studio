@@ -12,7 +12,27 @@ import { YoloPoseMapper } from './yolo-to-skeleton-mapper.js';
  * Complete animation system implementation
  */
 class AnimationSystem {
+// Configuration settings
+  CONFIG = {
+    // Enable detailed debug logging
+    enableDebugLogging: false,
+    // Default scale for the model
+    defaultModelScale: 0.5,
+    // Whether to show skeleton visualization by default
+    showSkeletonByDefault: false,
+    // Bone visualization size
+    boneSize: 0.03,
+    // Joint visualization size
+    jointSize: 0.05
+  };
   constructor(container) {
+// Initialize visualization state
+    this.visualizationState = {
+      skeletonVisible: this.CONFIG.showSkeletonByDefault,
+      skeletonHelper: null,
+      jointMarkers: [],
+      boneLines: []
+    };
     console.log('Setting up Theatre.js project in AnimationSystem');
     
     // Create Theatre.js project and sheet
@@ -113,6 +133,18 @@ class AnimationSystem {
    * Set up Three.js scene, camera, renderer
    */
   setupThreeJS(container) {
+// Initialize materials used for visualization
+    this.visualizationMaterials = {
+      jointMaterial: new THREE.MeshBasicMaterial({ color: 0xffff00 }),
+      boneMaterial: new THREE.LineBasicMaterial({ color: 0x00ffff }),
+      activeBoneMaterial: new THREE.LineBasicMaterial({ color: 0xff00ff }),
+      skeletonMaterial: new THREE.MeshBasicMaterial({ 
+        color: 0xffffff, 
+        wireframe: true,
+        transparent: true,
+        opacity: 0.25
+      })
+    };
     // Create scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x2a2a2a);
@@ -299,6 +331,10 @@ class AnimationSystem {
    * Animation loop for keyframe animation playback
    */
   animationLoop(timestamp) {
+// Update skeleton visualization if enabled
+      if (this.visualizationState.skeletonVisible) {
+        this.updateSkeletonVisualization();
+      }
     // Continue the loop if still playing
     if (this.animationState.isPlaying) {
       requestAnimationFrame(this.boundAnimationLoop);
@@ -493,88 +529,53 @@ class AnimationSystem {
     }
   }
   
-  /**
+/**
    * Apply animation frame at specific time
    * @param {Number} time - Time in seconds
    */
-applyAnimationFrame(time) {
-    // Debug logging for the first few frames
-    if (!this.frameDebugCount) this.frameDebugCount = 0;
-    
-    // Only log for the first 10 frames
-    if (this.frameDebugCount < 10) {
-      this.frameDebugCount++;
-      console.log(`===== DEBUG FRAME ${this.frameDebugCount}, Time: ${time.toFixed(3)}s =====`);
+  applyAnimationFrame(time) {
+    // Debug logging only if enabled in config
+    if (this.CONFIG.enableDebugLogging) {
+      if (!this.frameDebugCount) this.frameDebugCount = 0;
       
-      try {
-        // Log model parts positions if available
-        if (this.humanoidModel && this.humanoidModel.mesh) {
-          console.log('MODEL PARTS POSITIONS:');
-          
-          // Log key body parts of the mesh if we can find them
-          const bodyParts = this.humanoidModel.mesh.geometry?.groups || [];
-          if (bodyParts.length > 0) {
-            bodyParts.forEach((part, index) => {
-              console.log(`  Body part ${index}: Start: ${part.start}, Count: ${part.count}`);
-            });
-          }
-          
-          // Log position of the overall model
-          console.log(`  Model position: ${this.humanoidModel.scene.position.x.toFixed(2)}, ${this.humanoidModel.scene.position.y.toFixed(2)}, ${this.humanoidModel.scene.position.z.toFixed(2)}`);
-        }
+      // Only log for the first 10 frames
+      if (this.frameDebugCount < 10) {
+        this.frameDebugCount++;
+        console.log(`===== DEBUG FRAME ${this.frameDebugCount}, Time: ${time.toFixed(3)}s =====`);
         
-        // Log skeleton bone positions if available
-        if (this.humanoidModel && this.humanoidModel.skeleton) {
-          console.log('SKELETON BONES POSITIONS:');
-          
-          // Key bones to examine
-          const keyBones = ['Root', 'Hips', 'Spine', 'Neck', 'Head', 
-                           'LeftShoulder', 'LeftArm', 'RightShoulder', 'RightArm'];
-          
-          this.humanoidModel.skeleton.bones.forEach(bone => {
-            if (keyBones.includes(bone.name)) {
-              // Get world position
-              const worldPos = new THREE.Vector3();
-              bone.getWorldPosition(worldPos);
+        try {
+          // Log animation data for this frame
+          if (this.currentAnimation && this.currentAnimation.frames) {
+            const frameIndex = Math.floor(time * this.currentAnimation.metadata.frameRate);
+            const frame = this.currentAnimation.frames[frameIndex];
+            
+            if (frame) {
+              console.log('ANIMATION DATA for frame', frameIndex);
               
-              console.log(`  ${bone.name}: Local (${bone.position.x.toFixed(2)}, ${bone.position.y.toFixed(2)}, ${bone.position.z.toFixed(2)}) | ` +
-                         `World (${worldPos.x.toFixed(2)}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)}) | ` +
-                         `Rotation (${bone.rotation.x.toFixed(2)}, ${bone.rotation.y.toFixed(2)}, ${bone.rotation.z.toFixed(2)})`);
+              // Log key joints
+              const keyJoints = ['Root', 'Hips', 'LeftShoulder', 'LeftArm', 'RightShoulder', 'RightArm'];
+              
+              keyJoints.forEach(jointName => {
+                if (frame.joints[jointName]) {
+                  const joint = frame.joints[jointName];
+                  let info = `  ${jointName}: `;
+                  
+                  if (joint.rotation) {
+                    info += `Rotation [${joint.rotation.map(v => v.toFixed(2)).join(', ')}]`;
+                  }
+                  
+                  if (joint.position) {
+                    info += ` Position [${joint.position.map(v => v.toFixed(2)).join(', ')}]`;
+                  }
+                  
+                  console.log(info);
+                }
+              });
             }
-          });
-        }
-        
-        // Log animation data for this frame
-        if (this.currentAnimation && this.currentAnimation.frames) {
-          const frameIndex = Math.floor(time * this.currentAnimation.metadata.frameRate);
-          const frame = this.currentAnimation.frames[frameIndex];
-          
-          if (frame) {
-            console.log('ANIMATION DATA:');
-            
-            // Log key joints
-            const keyJoints = ['Root', 'Hips', 'LeftShoulder', 'LeftArm', 'RightShoulder', 'RightArm'];
-            
-            keyJoints.forEach(jointName => {
-              if (frame.joints[jointName]) {
-                const joint = frame.joints[jointName];
-                let info = `  ${jointName}: `;
-                
-                if (joint.rotation) {
-                  info += `Rotation [${joint.rotation.map(v => v.toFixed(2)).join(', ')}]`;
-                }
-                
-                if (joint.position) {
-                  info += ` Position [${joint.position.map(v => v.toFixed(2)).join(', ')}]`;
-                }
-                
-                console.log(info);
-              }
-            });
           }
+        } catch (error) {
+          console.error('Error in debug logging:', error);
         }
-      } catch (error) {
-        console.error('Error in debug logging:', error);
       }
     }
 // Skip frame 0 for visualization (workaround for model-skeleton mismatch)
@@ -927,6 +928,8 @@ if (!this.modelInitialized) {
    * Reset the model to default pose
    */
   resetPose() {
+// Update skeleton visualization if enabled
+    this.updateSkeletonVisualization();
     try {
       if (this.humanoidModel) {
         // Create a default pose with identity rotations for all possible joints
@@ -957,6 +960,236 @@ if (!this.modelInitialized) {
    * This is a targeted fix for the arm positioning issue
    */
   fixModelArms() {
+}
+  
+  /**
+   * Toggle the skeleton visualization on/off
+   */
+  toggleSkeletonVisualization() {
+    try {
+      console.log('Toggling skeleton visualization');
+      this.visualizationState.skeletonVisible = !this.visualizationState.skeletonVisible;
+      
+      if (this.visualizationState.skeletonVisible) {
+        // Create skeleton visualization if it doesn't exist
+        this.createSkeletonVisualization();
+      } else {
+        // Remove existing visualization
+        this.removeSkeletonVisualization();
+      }
+      
+      return this.visualizationState.skeletonVisible;
+    } catch (error) {
+      console.error('Error toggling skeleton visualization:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Create visual elements for skeleton visualization
+   */
+  createSkeletonVisualization() {
+    try {
+      // Remove any existing visualization first
+      this.removeSkeletonVisualization();
+      
+      if (!this.humanoidModel || !this.humanoidModel.skeleton) {
+        console.error('Cannot create skeleton visualization - model or skeleton not available');
+        return;
+      }
+      
+      console.log('Creating skeleton visualization');
+      
+      // Create skeleton helper if Three.js supports it
+      if (THREE.SkeletonHelper) {
+        this.visualizationState.skeletonHelper = new THREE.SkeletonHelper(this.humanoidModel.scene);
+        this.visualizationState.skeletonHelper.material.linewidth = 2;
+        this.scene.add(this.visualizationState.skeletonHelper);
+      }
+      
+      // Create joint markers
+      this.createJointMarkers();
+      
+      // Create bone lines
+      this.createBoneLines();
+      
+      console.log('Skeleton visualization created');
+    } catch (error) {
+      console.error('Error creating skeleton visualization:', error);
+    }
+  }
+  
+  /**
+   * Create visual markers for all joints in the skeleton
+   */
+  createJointMarkers() {
+    try {
+      if (!this.humanoidModel || !this.humanoidModel.skeleton) return;
+      
+      // Create a sphere for each joint
+      this.humanoidModel.skeleton.bones.forEach(bone => {
+        const geometry = new THREE.SphereGeometry(this.CONFIG.jointSize);
+        const mesh = new THREE.Mesh(geometry, this.visualizationMaterials.jointMaterial);
+        
+        // Position at the joint
+        mesh.position.copy(bone.position);
+        
+        // Add as child of the bone
+        bone.add(mesh);
+        
+        // Store reference
+        this.visualizationState.jointMarkers.push({
+          bone: bone.name,
+          mesh
+        });
+      });
+    } catch (error) {
+      console.error('Error creating joint markers:', error);
+    }
+  }
+  
+  /**
+   * Create visual lines for all bones in the skeleton
+   */
+  createBoneLines() {
+    try {
+      if (!this.humanoidModel || !this.humanoidModel.skeleton) return;
+      
+      // Create a line for each bone
+      this.humanoidModel.skeleton.bones.forEach(bone => {
+        if (!bone.children || bone.children.length === 0) return;
+        
+        // For each child bone, create a line from this bone to the child
+        bone.children.forEach(childBone => {
+          // Only create lines for actual bones (not visualization objects)
+          if (!childBone.isBone) return;
+          
+          // Create line geometry
+          const points = [
+            new THREE.Vector3(0, 0, 0), // Bone origin
+            childBone.position.clone() // Child bone position
+          ];
+          
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const line = new THREE.Line(geometry, this.visualizationMaterials.boneMaterial);
+          
+          // Add as child of the bone
+          bone.add(line);
+          
+          // Store reference
+          this.visualizationState.boneLines.push({
+            parent: bone.name,
+            child: childBone.name,
+            line
+          });
+        });
+      });
+    } catch (error) {
+      console.error('Error creating bone lines:', error);
+    }
+  }
+  
+  /**
+   * Update the skeleton visualization to match the current pose
+   */
+  updateSkeletonVisualization() {
+    try {
+      if (!this.visualizationState.skeletonVisible) return;
+      
+      // Update skeleton helper
+      if (this.visualizationState.skeletonHelper) {
+        this.visualizationState.skeletonHelper.update();
+      }
+      
+      // No need to update joints or bones as they're attached to the bones
+      // and will move automatically with the skeleton
+    } catch (error) {
+      console.error('Error updating skeleton visualization:', error);
+    }
+  }
+  
+  /**
+   * Remove all skeleton visualization elements
+   */
+  removeSkeletonVisualization() {
+    try {
+      // Remove skeleton helper
+      if (this.visualizationState.skeletonHelper) {
+        this.scene.remove(this.visualizationState.skeletonHelper);
+        this.visualizationState.skeletonHelper = null;
+      }
+      
+      // Remove joint markers
+      this.visualizationState.jointMarkers.forEach(marker => {
+        if (marker.mesh && marker.mesh.parent) {
+          marker.mesh.parent.remove(marker.mesh);
+        }
+      });
+      this.visualizationState.jointMarkers = [];
+      
+      // Remove bone lines
+      this.visualizationState.boneLines.forEach(boneLine => {
+        if (boneLine.line && boneLine.line.parent) {
+          boneLine.line.parent.remove(boneLine.line);
+        }
+      });
+      this.visualizationState.boneLines = [];
+      
+      console.log('Skeleton visualization removed');
+    } catch (error) {
+      console.error('Error removing skeleton visualization:', error);
+    }
+  }
+  
+  /**
+   * Import animation from JSON data
+   * @param {Object} jsonData - Parsed JSON animation data
+   * @returns {Boolean} Success status
+   */
+  async importAnimationFromJSON(jsonData) {
+    try {
+      console.log('Importing animation from JSON data:', jsonData);
+      
+      // Validate the data format
+      if (!jsonData || !jsonData.frames || !Array.isArray(jsonData.frames)) {
+        console.error('Invalid animation data format: missing frames array');
+        return false;
+      }
+      
+      if (!jsonData.metadata) {
+        console.log('Animation metadata missing, creating default metadata');
+        jsonData.metadata = {
+          name: 'Imported Animation',
+          frameRate: 30,
+          duration: jsonData.frames.length / 30,
+          dimensions: { width: 640, height: 480 }
+        };
+      }
+      
+      // Add the animation
+      const index = this.addAnimation(jsonData);
+      
+      if (index >= 0) {
+        console.log('Animation imported successfully at index:', index);
+        
+        // Switch to the newly imported animation
+        this.setCurrentAnimation(index);
+        
+        // Apply the first frame
+        this.applyAnimationFrame(0);
+        
+        return true;
+      } else {
+        console.error('Failed to import animation');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error importing animation from JSON:', error);
+      return false;
+    }
+  }
+// Update skeleton visualization after fixing arms
+    this.updateSkeletonVisualization();
     try {
       if (!this.humanoidModel || !this.humanoidModel.mesh) {
         console.error('Cannot fix arms - model or mesh not available');
