@@ -351,10 +351,7 @@ class AnimationSystem {
         }
       }
       
-      // Apply the animation frame
-      if (this.frameCount % 10 === 0) {
-        console.log(`Applying animation frame at time ${this.animationState.currentTime.toFixed(2)}s`);
-      }
+      // Apply the animation frame (without excessive logging)
       this.applyAnimationFrame(this.animationState.currentTime);
     } catch (error) {
       console.error('Error in animation loop:', error);
@@ -503,10 +500,8 @@ class AnimationSystem {
    * @param {Number} time - Time in seconds
    */
   applyAnimationFrame(time) {
-// Skip frame 0 for visualization
-    // This is a temporary workaround for the model-skeleton mismatch
+// Skip frame 0 for visualization (workaround for model-skeleton mismatch)
     if (Math.abs(time) < 0.001) {
-      console.log('Skipping frame 0 to avoid model-skeleton mismatch');
       // Apply frame 1 instead, which typically works better
       if (this.currentAnimation && 
           this.currentAnimation.frames && 
@@ -564,10 +559,7 @@ if (!this.modelInitialized) {
         return;
       }
       
-      // Log animation application once in a while
-      if (this.frameCount % 30 === 0) {
-        console.log(`Applying animation frame at time ${time}s, frames:`, frames.length);
-      }
+      // Removed logging to reduce console output
       
       // Find the two closest frames
       const frameIndex = Math.min(
