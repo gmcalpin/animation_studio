@@ -22,218 +22,199 @@ Options:
 import argparse
 import os
 import re
-import shutil
 import subprocess
+import shutil
 import sys
-import tempfile
 
+def read_file(filename):
+    with open(filename, 'r', encoding='utf-8') as f:
+        return f.read()
 
-def read_file(file_path):
-    """Read a file and return its contents."""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        print(f"Error reading file {file_path}: {e}")
-        sys.exit(1)
+def write_file(filename, content):
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(content)
 
-
-def write_file(file_path, content):
-    """Write content to a file."""
-    try:
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-    except Exception as e:
-        print(f"Error writing to file {file_path}: {e}")
-        sys.exit(1)
-
+def parse_args():
+    parser = argparse.ArgumentParser(description='Apply patches to source code files')
+    parser.add_argument('--file', required=True, help='File to apply the patch to')
+    parser.add_argument('--patch', required=True, help='Patch file to apply')
+    parser.add_argument('--mode', default='replace', 
+                        choices=['replace', 'append', 'prepend', 'smart', 'functions'],
+                        help='Mode to apply the patch')
+    parser.add_argument('--ignore-whitespace', action='store_true',
+                        help='Ignore whitespace differences when matching sections')
+    parser.add_argument('--git-commit', action='store_true',
+                        help='Commit changes to git after successful patch')
+    parser.add_argument('--git-push', action='store_true',
+                        help='Push changes to git after successful commit')
+    parser.add_argument('--safe-mode', action='store_true',
+                        help='Create a backup and restore on failure')
+    return parser.parse_args()
 
 def backup_file(file_path):
-    """Create a backup of the file."""
     backup_path = f"{file_path}.bak"
-    try:
-        shutil.copy2(file_path, backup_path)
-        return backup_path
-    except Exception as e:
-        print(f"Error creating backup of {file_path}: {e}")
-        sys.exit(1)
+    shutil.copy2(file_path, backup_path)
+    return backup_path
 
+def restore_from_backup(file_path, backup_path):
+    shutil.copy2(backup_path, file_path)
+    os.remove(backup_path)
+    print(f"Restored {file_path} from backup")
 
-def restore_backup(backup_path, file_path):
-    """Restore the file from backup."""
-    try:
-        shutil.copy2(backup_path, file_path)
-        os.remove(backup_path)
-        print(f"Restored {file_path} from backup.")
-    except Exception as e:
-        print(f"Error restoring {file_path} from backup: {e}")
-
-
-def git_commit(file_path, message=None):
-    """Commit changes to git."""
-    try:
-        if not message:
-            message = f"Applied patch to {os.path.basename(file_path)}"
-        
-        subprocess.run(['git', 'add', file_path], check=True)
-        subprocess.run(['git', 'commit', '-m', message], check=True)
-        print(f"Changes to {file_path} committed to git.")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Error committing changes to git: {e}")
-        return False
-
-
-def git_push():
-    """Push changes to git remote."""
-    try:
-        subprocess.run(['git', 'push'], check=True)
-        print("Changes pushed to git remote.")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Error pushing changes to git: {e}")
-        return False
-
-
-def parse_patch_file(patch_content, mode):
-    """Parse the patch file based on the specified mode."""
-    if mode == "replace":
-        # Format: // REPLACE_SECTION\n<old_code>\n// WITH\n<new_code>\n// END_REPLACE
-        sections = re.split(r'// REPLACE_SECTION\n', patch_content)[1:]
-        replacements = []
-        
-        for section in sections:
-            parts = re.split(r'// WITH\n', section, maxsplit=1)
-            if len(parts) != 2:
-                print("Error: Invalid replacement section in patch file.")
-                sys.exit(1)
-                
-            old_code, rest = parts
-            new_code = rest.split('// END_REPLACE', 1)[0]
-            replacements.append((old_code, new_code))
+def parse_replace_patch(patch_content):
+    sections = re.split(r'// REPLACE_SECTION\n', patch_content)[1:]
+    replacements = []
+    
+    for section in sections:
+        parts = re.split(r'// WITH\n', section, maxsplit=1)
+        if len(parts) != 2:
+            print("Error: Invalid replacement section in patch file")
+            sys.exit(1)
             
-        return replacements
-    
-    elif mode == "append":
-        # Format: // APPEND\n<code_to_append>\n// END_APPEND
-        append_sections = re.findall(r'// APPEND\n(.*?)// END_APPEND', patch_content, re.DOTALL)
-        return append_sections
-    
-    elif mode == "prepend":
-        # Format: // PREPEND\n<code_to_prepend>\n// END_PREPEND
-        prepend_sections = re.findall(r'// PREPEND\n(.*?)// END_PREPEND', patch_content, re.DOTALL)
-        return prepend_sections
-    
-    elif mode == "smart":
-        # Format: // ADD_AFTER\n<target_code>\n// NEW_CONTENT\n<new_code>\n// END_ADD
-        sections = re.split(r'// ADD_AFTER\n', patch_content)[1:]
-        additions = []
+        old_code, rest = parts
+        new_code = rest.split('// END_REPLACE', 1)[0]
+        replacements.append((old_code, new_code))
         
-        for section in sections:
-            parts = re.split(r'// NEW_CONTENT\n', section, 1)
-            if len(parts) != 2:
-                print("Error: Invalid smart addition section in patch file.")
-                sys.exit(1)
-                
-            target_code, rest = parts
-            new_code = rest.split('// END_ADD', 1)[0]
-            additions.append((target_code, new_code))
-            
-        return additions
-    
-    elif mode == "functions":
-        # Format: // FUNCTION\n<function_signature>\n// CODE\n<function_code>\n// END_FUNCTION
-        sections = re.split(r'// FUNCTION\n', patch_content)[1:]
-        functions = []
-        
-        for section in sections:
-            parts = re.split(r'// CODE\n', section, 1)
-            if len(parts) != 2:
-                print("Error: Invalid function section in patch file.")
-                sys.exit(1)
-                
-            signature, rest = parts
-            code = rest.split('// END_FUNCTION', 1)[0]
-            functions.append((signature.strip(), code))
-            
-        return functions
-    
-    else:
-        print(f"Error: Unsupported patch mode '{mode}'.")
-        sys.exit(1)
+    return replacements
 
+def parse_append_patch(patch_content):
+    sections = re.split(r'// APPEND\n', patch_content)[1:]
+    append_sections = []
+    
+    for section in sections:
+        code = section.split('// END_APPEND', 1)[0]
+        append_sections.append(code)
+        
+    return append_sections
+
+def parse_prepend_patch(patch_content):
+    sections = re.split(r'// PREPEND\n', patch_content)[1:]
+    prepend_sections = []
+    
+    for section in sections:
+        code = section.split('// END_PREPEND', 1)[0]
+        prepend_sections.append(code)
+        
+    return prepend_sections
+
+def parse_smart_patch(patch_content):
+    sections = re.split(r'// ADD_AFTER\n', patch_content)[1:]
+    additions = []
+    
+    for section in sections:
+        parts = re.split(r'// NEW_CONTENT\n', section, maxsplit=1)
+        if len(parts) != 2:
+            print("Error: Invalid smart addition section in patch file")
+            sys.exit(1)
+            
+        target_code, rest = parts
+        new_code = rest.split('// END_ADD', 1)[0]
+        additions.append((target_code, new_code))
+        
+    return additions
+
+def parse_functions_patch(patch_content):
+    sections = re.split(r'// FUNCTION\n', patch_content)[1:]
+    functions = []
+    
+    for section in sections:
+        parts = re.split(r'// CODE\n', section, maxsplit=1)
+        if len(parts) != 2:
+            print("Error: Invalid function section in patch file")
+            sys.exit(1)
+            
+        signature, rest = parts
+        code = rest.split('// END_FUNCTION', 1)[0]
+        functions.append((signature.strip(), code))
+        
+    return functions
 
 def apply_replace_patch(file_content, replacements, ignore_whitespace=False):
-    """Apply replacement patches to the file content."""
+    changed = False
     patched_content = file_content
     
     for old_code, new_code in replacements:
         if ignore_whitespace:
             # Normalize whitespace for matching
             pattern = re.escape(old_code.strip()).replace('\\n\\s*', '\\s*\\n\\s*')
-            if not re.search(pattern, patched_content, re.DOTALL):
+            matches = re.search(pattern, patched_content, re.DOTALL)
+            if not matches:
                 print(f"Warning: Could not find section to replace:\n{old_code}")
                 continue
-            
-            patched_content = re.sub(pattern, new_code, patched_content, count=1, flags=re.DOTALL)
+            match_text = matches.group(0)
+            patched_content = patched_content.replace(match_text, new_code, 1)
+            changed = True
         else:
             if old_code not in patched_content:
                 print(f"Warning: Could not find section to replace:\n{old_code}")
                 continue
-            
             patched_content = patched_content.replace(old_code, new_code, 1)
+            changed = True
     
-    return patched_content
-
+    if not changed:
+        print("Error: No changes were applied")
+        return file_content, False
+    
+    return patched_content, True
 
 def apply_append_patch(file_content, append_sections):
-    """Apply append patches to the file content."""
+    if not append_sections:
+        print("Error: No append sections found")
+        return file_content, False
+    
     patched_content = file_content
+    for code in append_sections:
+        patched_content += "\n" + code
     
-    for code_to_append in append_sections:
-        patched_content += "\n" + code_to_append
-    
-    return patched_content
-
+    return patched_content, True
 
 def apply_prepend_patch(file_content, prepend_sections):
-    """Apply prepend patches to the file content."""
+    if not prepend_sections:
+        print("Error: No prepend sections found")
+        return file_content, False
+    
     patched_content = file_content
+    for code in reversed(prepend_sections):
+        patched_content = code + "\n" + patched_content
     
-    for code_to_prepend in reversed(prepend_sections):
-        patched_content = code_to_prepend + "\n" + patched_content
-    
-    return patched_content
-
+    return patched_content, True
 
 def apply_smart_patch(file_content, additions, ignore_whitespace=False):
-    """Apply smart patches to the file content."""
+    changed = False
     patched_content = file_content
     
     for target_code, new_code in additions:
         if ignore_whitespace:
             # Normalize whitespace for matching
             pattern = re.escape(target_code.strip()).replace('\\n\\s*', '\\s*\\n\\s*')
-            match = re.search(pattern, patched_content, re.DOTALL)
-            if not match:
+            matches = re.search(pattern, patched_content, re.DOTALL)
+            if not matches:
                 print(f"Warning: Could not find target for smart addition:\n{target_code}")
                 continue
-            
-            end_pos = match.end()
-            patched_content = patched_content[:end_pos] + "\n" + new_code + patched_content[end_pos:]
+            match_text = matches.group(0)
+            insert_pos = patched_content.find(match_text) + len(match_text)
+            patched_content = patched_content[:insert_pos] + "\n" + new_code + patched_content[insert_pos:]
+            changed = True
         else:
             if target_code not in patched_content:
                 print(f"Warning: Could not find target for smart addition:\n{target_code}")
                 continue
-            
             insert_pos = patched_content.find(target_code) + len(target_code)
             patched_content = patched_content[:insert_pos] + "\n" + new_code + patched_content[insert_pos:]
+            changed = True
     
-    return patched_content
+    if not changed:
+        print("Error: No changes were applied")
+        return file_content, False
+    
+    return patched_content, True
 
-
-def apply_function_patches(file_content, functions):
-    """Apply function patches to the file content."""
+def apply_functions_patch(file_content, functions):
+    if not functions:
+        print("Error: No function sections found")
+        return file_content, False
+    
+    changed = False
     patched_content = file_content
     
     for signature, code in functions:
@@ -242,108 +223,108 @@ def apply_function_patches(file_content, functions):
         if re.search(pattern, patched_content, re.DOTALL):
             # Replace existing function
             patched_content = re.sub(pattern, signature + " {\n" + code + "\n}", patched_content, flags=re.DOTALL)
+            changed = True
         else:
             # Add new function at the end of the file
             patched_content += "\n\n" + signature + " {\n" + code + "\n}"
+            changed = True
     
-    return patched_content
+    if not changed:
+        print("Error: No changes were applied")
+        return file_content, False
+    
+    return patched_content, True
 
+def git_commit(file_path, message=None):
+    if not message:
+        message = f"Applied patch to {os.path.basename(file_path)}"
+    
+    try:
+        subprocess.run(['git', 'add', file_path], check=True)
+        subprocess.run(['git', 'commit', '-m', message], check=True)
+        print(f"Changes committed to git")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error committing changes to git: {e}")
+        return False
 
-def apply_patch(file_path, patch_path, mode="replace", ignore_whitespace=False,
-                git_commit_changes=False, git_push_changes=False, safe_mode=False):
-    """Apply a patch file to a source code file."""
-    if not os.path.exists(file_path):
-        print(f"Error: File {file_path} not found.")
+def git_push():
+    try:
+        subprocess.run(['git', 'push'], check=True)
+        print("Changes pushed to git")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error pushing changes to git: {e}")
+        return False
+
+def main():
+    args = parse_args()
+    
+    # Check if files exist
+    if not os.path.exists(args.file):
+        print(f"Error: File {args.file} not found")
+        sys.exit(1)
+        
+    if not os.path.exists(args.patch):
+        print(f"Error: Patch file {args.patch} not found")
         sys.exit(1)
     
-    if not os.path.exists(patch_path):
-        print(f"Error: Patch file {patch_path} not found.")
-        sys.exit(1)
+    # Read file and patch content
+    file_content = read_file(args.file)
+    patch_content = read_file(args.patch)
     
-    file_content = read_file(file_path)
-    patch_content = read_file(patch_path)
-    
-    # Create a backup if requested
+    # Create backup if specified
     backup_path = None
-    if safe_mode:
-        backup_path = backup_file(file_path)
+    if args.safe_mode:
+        backup_path = backup_file(args.file)
         print(f"Created backup at {backup_path}")
     
     try:
-        # Parse the patch file
-        parsed_patch = parse_patch_file(patch_content, mode)
+        # Parse and apply patch based on mode
+        if args.mode == 'replace':
+            replacements = parse_replace_patch(patch_content)
+            patched_content, changed = apply_replace_patch(file_content, replacements, args.ignore_whitespace)
+        elif args.mode == 'append':
+            append_sections = parse_append_patch(patch_content)
+            patched_content, changed = apply_append_patch(file_content, append_sections)
+        elif args.mode == 'prepend':
+            prepend_sections = parse_prepend_patch(patch_content)
+            patched_content, changed = apply_prepend_patch(file_content, prepend_sections)
+        elif args.mode == 'smart':
+            additions = parse_smart_patch(patch_content)
+            patched_content, changed = apply_smart_patch(file_content, additions, args.ignore_whitespace)
+        elif args.mode == 'functions':
+            functions = parse_functions_patch(patch_content)
+            patched_content, changed = apply_functions_patch(file_content, functions)
         
-        # Apply the patch
-        if mode == "replace":
-            patched_content = apply_replace_patch(file_content, parsed_patch, ignore_whitespace)
-        elif mode == "append":
-            patched_content = apply_append_patch(file_content, parsed_patch)
-        elif mode == "prepend":
-            patched_content = apply_prepend_patch(file_content, parsed_patch)
-        elif mode == "smart":
-            patched_content = apply_smart_patch(file_content, parsed_patch, ignore_whitespace)
-        elif mode == "functions":
-            patched_content = apply_function_patches(file_content, parsed_patch)
+        # Check if changes were made
+        if not changed:
+            if args.safe_mode and backup_path:
+                os.remove(backup_path)
+            sys.exit(1)
         
-        # Write the patched content back to the file
-        write_file(file_path, patched_content)
-        print(f"Successfully applied {mode} patch to {file_path}")
+        # Write patched content to file
+        write_file(args.file, patched_content)
+        print(f"Successfully applied {args.mode} patch to {args.file}")
         
-        # Commit changes to git if requested
-        if git_commit_changes:
-            success = git_commit(file_path)
-            
-            # Push changes to git if requested and commit was successful
-            if success and git_push_changes:
+        # Handle git operations
+        if args.git_commit:
+            success = git_commit(args.file)
+            if success and args.git_push:
                 git_push()
         
-        # Clean up backup if not needed
-        if safe_mode:
+        # Clean up backup if everything succeeded
+        if args.safe_mode and backup_path:
             os.remove(backup_path)
-        
-        return True
     
     except Exception as e:
         print(f"Error applying patch: {e}")
         
-        # Restore from backup if available
-        if safe_mode and backup_path:
-            restore_backup(backup_path, file_path)
+        # Restore from backup if we have one
+        if args.safe_mode and backup_path:
+            restore_from_backup(args.file, backup_path)
         
-        return False
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Apply patch files to source code")
-    parser.add_argument("--file", required=True, help="File to patch")
-    parser.add_argument("--patch", required=True, help="Patch file to apply")
-    parser.add_argument("--mode", default="replace", 
-                        choices=["replace", "append", "prepend", "smart", "functions"],
-                        help="Patch mode (default: replace)")
-    parser.add_argument("--ignore-whitespace", action="store_true",
-                        help="Ignore whitespace differences when matching sections")
-    parser.add_argument("--git-commit", action="store_true",
-                        help="Commit changes to git after successful patch")
-    parser.add_argument("--git-push", action="store_true",
-                        help="Push changes to git after successful commit")
-    parser.add_argument("--safe-mode", action="store_true",
-                        help="Create a backup and restore on failure")
-    
-    args = parser.parse_args()
-    
-    success = apply_patch(
-        args.file,
-        args.patch,
-        args.mode,
-        args.ignore_whitespace,
-        args.git_commit,
-        args.git_push,
-        args.safe_mode
-    )
-    
-    if not success:
         sys.exit(1)
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
