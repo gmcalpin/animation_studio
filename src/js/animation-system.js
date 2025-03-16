@@ -85,6 +85,12 @@ class AnimationSystem {
       loop: true
     };
     
+    // Track whether we need to skip the initial frame (which often has model/skeleton mismatch)
+    this.skipInitialFrame = true;
+    
+    // Track whether we need to skip the initial frame (which often has model/skeleton mismatch)
+    this.skipInitialFrame = true;
+    
     // Set up Three.js
     this.setupThreeJS(container);
     
@@ -500,6 +506,28 @@ class AnimationSystem {
    * @param {Number} time - Time in seconds
    */
   applyAnimationFrame(time) {
+// Skip frame 0 for visualization
+    // This is a temporary workaround for the model-skeleton mismatch
+    if (Math.abs(time) < 0.001) {
+      console.log('Skipping frame 0 to avoid model-skeleton mismatch');
+      // Apply frame 1 instead, which typically works better
+      if (this.currentAnimation && 
+          this.currentAnimation.frames && 
+          this.currentAnimation.frames.length > 1) {
+        time = 1.0 / this.currentAnimation.metadata.frameRate;
+      }
+    }
+// Skip frame 0 for visualization
+    // This is a temporary workaround for the model-skeleton mismatch
+    if (Math.abs(time) < 0.001) {
+      console.log('Skipping frame 0 to avoid model-skeleton mismatch');
+      // Apply frame 1 instead, which typically works better
+      if (this.currentAnimation && 
+          this.currentAnimation.frames && 
+          this.currentAnimation.frames.length > 1) {
+        time = 1.0 / this.currentAnimation.metadata.frameRate;
+      }
+    }
 // Track if this is the first frame being applied
     if (this.isFirstFrame === undefined) {
       this.isFirstFrame = true;
@@ -533,6 +561,9 @@ if (!this.modelInitialized) {
       console.log('Performing one-time model reset');
       this.resetPose();
       this.shouldResetModel = false;
+      
+      // Apply custom arm adjustments after reset
+      this.fixModelArms();
     }
     if (!this.currentAnimation) {
       console.warn('No current animation to apply frame');
@@ -807,6 +838,16 @@ if (!this.modelInitialized) {
    * For debugging: directly apply a specific frame
    */
   debugApplyFrame(frameIndex) {
+// Skip frame 0 for debug visualization
+    if (frameIndex === 0 && this.skipInitialFrame) {
+      console.log('Using frame 1 instead of frame 0 for better visualization');
+      frameIndex = 1;
+    }
+// Skip frame 0 for debug visualization
+    if (frameIndex === 0 && this.skipInitialFrame) {
+      console.log('Using frame 1 instead of frame 0 for better visualization');
+      frameIndex = 1;
+    }
     if (!this.currentAnimation || !this.currentAnimation.frames) {
       console.error('No animation loaded or no frames available');
       return;
@@ -836,6 +877,72 @@ if (!this.modelInitialized) {
    * Reset the model to default pose
    */
   resetPose() {
+/**
+   * Fix model arms specifically
+   * This is a targeted fix for the arm positioning issue
+   */
+  fixModelArms() {
+    try {
+      if (!this.humanoidModel || !this.humanoidModel.mesh) {
+        console.error('Cannot fix arms - model or mesh not available');
+        return;
+      }
+      
+      console.log('Applying specific fix for model arms');
+      
+      // Create a pose that explicitly fixes arm positions only
+      const armPose = {
+        joints: {
+          // Arms specific adjustments
+          LeftShoulder: { rotation: [0, 0, 0.3826834, 0.9238795] }, // 45 degrees around Z
+          RightShoulder: { rotation: [0, 0, -0.3826834, 0.9238795] }, // -45 degrees around Z
+        }
+      };
+      
+      // Apply just the arm adjustments
+      this.humanoidModel.applyPose(armPose);
+      
+      // Update the scene
+      if (this.humanoidModel.scene) {
+        this.humanoidModel.scene.updateMatrixWorld(true);
+      }
+    } catch (error) {
+      console.error('Error fixing model arms:', error);
+    }
+  }
+/**
+   * Fix model arms specifically
+   * This is a targeted fix for the arm positioning issue
+   */
+  fixModelArms() {
+    try {
+      if (!this.humanoidModel || !this.humanoidModel.mesh) {
+        console.error('Cannot fix arms - model or mesh not available');
+        return;
+      }
+      
+      console.log('Applying specific fix for model arms');
+      
+      // Create a pose that explicitly fixes arm positions only
+      const armPose = {
+        joints: {
+          // Arms specific adjustments
+          LeftShoulder: { rotation: [0, 0, 0.3826834, 0.9238795] }, // 45 degrees around Z
+          RightShoulder: { rotation: [0, 0, -0.3826834, 0.9238795] }, // -45 degrees around Z
+        }
+      };
+      
+      // Apply just the arm adjustments
+      this.humanoidModel.applyPose(armPose);
+      
+      // Update the scene
+      if (this.humanoidModel.scene) {
+        this.humanoidModel.scene.updateMatrixWorld(true);
+      }
+    } catch (error) {
+      console.error('Error fixing model arms:', error);
+    }
+  }
     try {
       if (this.humanoidModel) {
         // Create a default pose with identity rotations for all possible joints
