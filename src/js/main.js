@@ -36,11 +36,33 @@ console.log('Theatre.js studio initialized');
 // Get the container element
 const container = document.getElementById('animation-container');
 
-// Create the animation system
-const animationSystem = new AnimationSystem(container);
+// Wait for DOM content to be loaded
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM content loaded, creating animation system...');
+  const container = document.getElementById('animation-container');
+  if (!container) {
+    console.error('Could not find animation-container element');
+    return;
+  }
+  
+  try {
+    // Create the animation system
+    const animationSystem = new AnimationSystem(container);
+    console.log('Animation system created successfully');
+    
+    // Make available in console for debugging
+    window.animationSystem = animationSystem;
+    
+    // Load our data and set up UI
+    initializeApplication(animationSystem);
+  } catch (error) {
+    console.error('Failed to create animation system:', error);
+  }
+});
 
 // Load YOLO animation data
 async function loadYoloData() {
+// This function will be called from initializeApplication
   try {
     const response = await fetch('/yolo_animation_data.json');
     const animationData = await response.json();
@@ -132,3 +154,128 @@ async function init() {
 
 // Start the application
 init();
+// New function to handle initialization
+async function initializeApplication(animationSystem) {
+  try {
+    // First try to load YOLO data
+    const animationData = await loadYoloData();
+    if (animationData) {
+      console.log('Successfully loaded animation data');
+    } else {
+      console.log('No animation data found, loading test animation instead');
+      animationSystem.loadTestAnimation();
+    }
+    
+    // Create UI elements
+    createUI(animationSystem);
+    addExportButton(animationSystem);
+    
+    console.log('Application initialized successfully');
+  } catch (error) {
+    console.error('Error initializing application:', error);
+    console.log('Attempting to load test animation as fallback');
+    try {
+      animationSystem.loadTestAnimation();
+    } catch (fallbackError) {
+      console.error('Failed to load test animation:', fallbackError);
+    }
+  }
+}
+
+// Update the createUI function to take animationSystem as a parameter
+function createUI(animationSystem) {
+  const ui = document.createElement('div');
+  ui.style.position = 'absolute';
+  ui.style.top = '10px';
+  ui.style.left = '10px';
+  ui.style.zIndex = '100';
+  ui.innerHTML = `
+    <div style="background: rgba(0,0,0,0.5); padding: 10px; color: white; border-radius: 5px;">
+      <h3>Animation Controls</h3>
+      <button id="play-btn">Play</button>
+      <button id="pause-btn">Pause</button>
+      <button id="stop-btn">Stop</button>
+    </div>
+  `;
+  
+  document.body.appendChild(ui);
+  
+  // Add event listeners
+  document.getElementById('play-btn').addEventListener('click', () => {
+    if (animationSystem && animationSystem.timelineObj) {
+      try {
+        animationSystem.timelineObj.set({ playback: 'play' });
+      } catch (error) {
+        console.error('Error playing animation:', error);
+      }
+    } else {
+      console.error('Animation system or timeline not available');
+    }
+  });
+  
+  document.getElementById('pause-btn').addEventListener('click', () => {
+    if (animationSystem && animationSystem.timelineObj) {
+      try {
+        animationSystem.timelineObj.set({ playback: 'pause' });
+      } catch (error) {
+        console.error('Error pausing animation:', error);
+      }
+    } else {
+      console.error('Animation system or timeline not available');
+    }
+  });
+  
+  document.getElementById('stop-btn').addEventListener('click', () => {
+    if (animationSystem && animationSystem.timelineObj) {
+      try {
+        animationSystem.timelineObj.set({ playback: 'stop' });
+      } catch (error) {
+        console.error('Error stopping animation:', error);
+      }
+    } else {
+      console.error('Animation system or timeline not available');
+    }
+  });
+  
+  console.log('UI controls created');
+  return ui;
+}
+
+// Update the addExportButton function to take animationSystem as a parameter
+function addExportButton(animationSystem) {
+  const exportBtn = document.createElement('button');
+  exportBtn.textContent = 'Export Animation';
+  exportBtn.style.marginTop = '10px';
+  
+  exportBtn.addEventListener('click', () => {
+    if (animationSystem && typeof animationSystem.exportAnimationToJSON === 'function') {
+      try {
+        const animationData = animationSystem.exportAnimationToJSON();
+        
+        // Create downloadable file
+        const blob = new Blob([animationData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'edited_animation.json';
+        a.click();
+        
+        URL.revokeObjectURL(url);
+        console.log('Animation exported successfully');
+      } catch (error) {
+        console.error('Error exporting animation:', error);
+      }
+    } else {
+      console.error('Animation system or export function not available');
+    }
+  });
+  
+  const container = document.querySelector('div[style*="background: rgba"]');
+  if (container) {
+    container.appendChild(exportBtn);
+    console.log('Export button added');
+  } else {
+    console.error('Could not find container for export button');
+  }
+}
