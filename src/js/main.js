@@ -111,15 +111,36 @@ async function initializeApplication(animationSystem) {
     
     if (animationData) {
       console.log('Processing YOLO animation data...');
-      const yoloPoseMapper = new YoloPoseMapper();
-      const universalAnimation = yoloPoseMapper.processSequence(
-        animationData.detections,
-        animationData.metadata
-      );
+      console.log('Processing YOLO data with', animationData.detections.length, 'detections');
       
-      // Add to animation system
-      animationSystem.addAnimation(universalAnimation);
-      console.log('YOLO animation loaded successfully');
+      // Check the structure of the data
+      if (animationData.detections && animationData.detections.length > 0) {
+        console.log('First detection sample:', animationData.detections[0]);
+      }
+      
+      const yoloPoseMapper = new YoloPoseMapper();
+      
+      try {
+        const universalAnimation = yoloPoseMapper.processSequence(
+          animationData.detections,
+          animationData.metadata
+        );
+        
+        console.log('Universal animation created:', universalAnimation);
+        console.log('Frame count:', universalAnimation.frames.length);
+        
+        if (universalAnimation.frames && universalAnimation.frames.length > 0) {
+          console.log('First frame sample:', universalAnimation.frames[0]);
+        }
+        
+        // Add to animation system
+        const animationIndex = animationSystem.addAnimation(universalAnimation);
+        console.log('YOLO animation loaded successfully at index:', animationIndex);
+      } catch (error) {
+        console.error('Error processing YOLO data:', error);
+        console.log('Falling back to test animation');
+        animationSystem.loadTestAnimation();
+      }
     } else {
       console.log('No YOLO animation data found, loading test animation...');
       animationSystem.loadTestAnimation();
