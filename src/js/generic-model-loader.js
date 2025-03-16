@@ -15,12 +15,23 @@ class GenericHumanoidModel {
     this.skeleton = null;
     this.bones = {};
     this.mesh = null;
+this.debugMode = false;
+    this.bodyParts = [];
+    this.bodyGroup = null;
+    
+    // Store material colors for visualization
+    this.colors = {
+      default: 0x8888ff,
+      highlighted: 0xff8888,
+      selected: 0xffff00
+    };
   }
 
   /**
    * Create the skeleton based on the universal skeleton definition
    */
   createSkeleton() {
+console.log('Creating skeleton based on universal skeleton definition');
     const bones = [];
     const boneMap = {};
     
@@ -315,6 +326,24 @@ class GenericHumanoidModel {
    * @param {Object} pose - Pose data with joint rotations
    */
   applyPose(pose) {
+if (!pose || !pose.joints) {
+      console.warn('Invalid pose data provided to applyPose');
+      return;
+    }
+    
+    // Debug logging if enabled
+    if (this.debugMode) {
+      console.log('Applying pose:', pose);
+      
+      // Log first few joint rotations
+      const jointNames = Object.keys(pose.joints);
+      if (jointNames.length > 0) {
+        console.log('Sample joint data:');
+        jointNames.slice(0, 3).forEach(name => {
+          console.log(`  ${name}:`, pose.joints[name]);
+        });
+      }
+    }
     // Apply rotations to bones
     Object.entries(pose.joints || {}).forEach(([jointName, jointData]) => {
       const bone = this.bones[jointName];
@@ -365,11 +394,20 @@ class GenericHumanoidModel {
     }, options);
   }
   
-  /**
+/**
    * Create a test animation that exercises all major joints
    * @returns {Object} Animation data in the universal format
    */
   createTestAnimation() {
+    console.log('Creating improved test animation');
+    
+    // Check if we have the complex animation method available
+    if (typeof this.createComplexTestAnimation === 'function') {
+      console.log('Using complex test animation for more natural movement');
+      return this.createComplexTestAnimation();
+    }
+    
+    // Fallback to simple animation if the complex one is not available
     const frames = [];
     const frameCount = 120; // 4 seconds at 30fps
     
@@ -381,7 +419,14 @@ class GenericHumanoidModel {
         joints: {}
       };
       
-      // Animate specific joints based on time
+      // Initialize with T-pose for shoulders
+      frame.joints['LeftShoulder'] = {
+        rotation: [0, 0, 0.3826834, 0.9238795] // 45 degrees around Z for T-pose
+      };
+      
+      frame.joints['RightShoulder'] = {
+        rotation: [0, 0, -0.3826834, 0.9238795] // -45 degrees around Z for T-pose
+      };
       
       // Wave with right arm
       const rightArmAngle = Math.sin(t * Math.PI * 4) * 0.5;
@@ -394,30 +439,93 @@ class GenericHumanoidModel {
         ]
       };
       
-      // Head turning
-      const headTurn = Math.sin(t * Math.PI * 2) * 0.3;
+      // Left arm movement
+      const leftArmAngle = Math.sin(t * Math.PI * 2) * 0.3;
+      frame.joints['LeftArm'] = {
+        rotation: [
+          leftArmAngle, // x - raise/lower arm
+          0,
+          0,
+          Math.sqrt(1 - leftArmAngle*leftArmAngle) // w
+        ]
+      };
+      
+      // Head movement - looking around
+      const headTurnY = Math.sin(t * Math.PI * 2) * 0.3;
+      const headNodX = Math.sin(t * Math.PI * 3) * 0.15;
+      
       frame.joints['Head'] = {
-        rotation: [0, headTurn, 0, Math.sqrt(1 - headTurn*headTurn)]
+        rotation: [
+          headNodX, // x - nodding
+          headTurnY, // y - turning side to side
+          0, 
+          Math.sqrt(1 - headNodX*headNodX - headTurnY*headTurnY)
+        ]
       };
       
-      // Slight body movement
+      // Body movement
       const bodyShift = Math.sin(t * Math.PI * 2) * 0.05;
+      const bodyTwist = Math.sin(t * Math.PI * 1.5) * 0.1;
+      
       frame.joints['Hips'] = {
-        position: [bodyShift, 0.9, 0],
-        rotation: [0, 0, 0, 1]
+        position: [bodyShift, Math.abs(Math.sin(t * Math.PI * 4)) * 0.03, 0],
+        rotation: [0, bodyTwist, 0, Math.sqrt(1 - bodyTwist*bodyTwist)]
       };
       
-      // More joint animations can be added
+      // Add spine movement
+      frame.joints['Spine'] = {
+        rotation: [
+          Math.sin(t * Math.PI * 2) * 0.1, // x - forward/backward bend
+          bodyTwist * 0.5, // y - follow hip twist partially
+          0,
+          Math.sqrt(1 - Math.pow(Math.sin(t * Math.PI * 2) * 0.1, 2) - Math.pow(bodyTwist * 0.5, 2))
+        ]
+      };
+      
+      // Add forearm movement
+      frame.joints['RightForeArm'] = {
+        rotation: [
+          0,
+          0,
+          Math.sin(t * Math.PI * 8) * 0.2, // z - forearm rotation
+          Math.sqrt(1 - Math.pow(Math.sin(t * Math.PI * 8) * 0.2, 2))
+        ]
+      };
+      
+      // Add leg movement - simple stepping in place
+      const legCycle = Math.sin(t * Math.PI * 4);
+      
+      frame.joints['LeftUpLeg'] = {
+        rotation: [
+          Math.max(0, legCycle) * 0.3, // x - lift leg forward when positive
+          0,
+          0,
+          Math.sqrt(1 - Math.pow(Math.max(0, legCycle) * 0.3, 2))
+        ]
+      };
+      
+      frame.joints['RightUpLeg'] = {
+        rotation: [
+          Math.max(0, -legCycle) * 0.3, // x - opposite phase of left leg
+          0,
+          0,
+          Math.sqrt(1 - Math.pow(Math.max(0, -legCycle) * 0.3, 2))
+        ]
+      };
       
       frames.push(frame);
     }
     
     return {
       metadata: {
-        name: "Test Animation",
+        name: "Improved Test Animation",
         frameCount,
         frameRate: 30,
-        duration: frameCount / 30
+        duration: frameCount / 30,
+        dimensions: {
+          width: 640,
+          height: 480
+        }
       },
       frames
     };
@@ -437,6 +545,283 @@ class GenericHumanoidModel {
    * This can help when the model parts become detached
    */
   initializeSkeleton() {
+}
+  
+  /**
+   * Toggle debug mode
+   * @param {Boolean} enabled - Whether to enable debug mode
+   */
+  setDebugMode(enabled) {
+    this.debugMode = enabled;
+    console.log(`Debug mode ${enabled ? 'enabled' : 'disabled'}`);
+    
+    return this;
+  }
+  
+  /**
+   * Highlight a specific bone for visualization
+   * @param {String} boneName - Name of the bone to highlight
+   * @param {Boolean} highlight - Whether to highlight or restore default
+   */
+  highlightBone(boneName, highlight = true) {
+    try {
+      // Find the body part associated with this bone
+      const bodyPart = this.bodyParts.find(part => part.bone.name === boneName);
+      
+      if (bodyPart && bodyPart.mesh) {
+        // Change the material color
+        const color = highlight ? this.colors.highlighted : this.colors.default;
+        bodyPart.mesh.material.color.setHex(color);
+      }
+      
+      // Also highlight any visualization elements for this bone
+      const bone = this.bones[boneName];
+      if (bone) {
+        bone.children.forEach(child => {
+          // Only modify visualization objects (not other bones)
+          if (!(child instanceof THREE.Bone) && child.material) {
+            child.material.color.setHex(highlight ? this.colors.highlighted : this.colors.default);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error highlighting bone:', error);
+    }
+    
+    return this;
+  }
+  
+  /**
+   * Reset all bone highlights
+   */
+  resetHighlights() {
+    try {
+      // Reset all body parts to default color
+      this.bodyParts.forEach(part => {
+        if (part.mesh && part.mesh.material) {
+          part.mesh.material.color.setHex(this.colors.default);
+        }
+      });
+      
+      // Reset all visualization elements
+      Object.values(this.bones).forEach(bone => {
+        bone.children.forEach(child => {
+          if (!(child instanceof THREE.Bone) && child.material) {
+            child.material.color.setHex(this.colors.default);
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Error resetting highlights:', error);
+    }
+    
+    return this;
+  }
+  
+  /**
+   * Set the model to T-pose
+   */
+  setTPose() {
+    try {
+      // Create a T-pose
+      const tPose = {
+        joints: {}
+      };
+      
+      // Set all rotations to identity
+      Object.keys(this.bones).forEach(boneName => {
+        tPose.joints[boneName] = {
+          rotation: [0, 0, 0, 1] // Identity quaternion
+        };
+      });
+      
+      // Special rotations for arms to create T-pose
+      tPose.joints['LeftShoulder'] = {
+        rotation: [0, 0, 0.3826834, 0.9238795] // 45 degrees around Z
+      };
+      
+      tPose.joints['RightShoulder'] = {
+        rotation: [0, 0, -0.3826834, 0.9238795] // -45 degrees around Z
+      };
+      
+      // Apply the T-pose
+      this.applyPose(tPose);
+      
+      console.log('Model set to T-pose');
+    } catch (error) {
+      console.error('Error setting T-pose:', error);
+    }
+    
+    return this;
+  }
+  
+  /**
+   * Update model materials with custom properties
+   * @param {Object} properties - Material properties to update
+   */
+  updateMaterials(properties) {
+    try {
+      // Apply material properties to all body parts
+      this.bodyParts.forEach(part => {
+        if (part.mesh && part.mesh.material) {
+          // Apply each property from the provided object
+          Object.entries(properties).forEach(([key, value]) => {
+            part.mesh.material[key] = value;
+          });
+          
+          // Mark material for update
+          part.mesh.material.needsUpdate = true;
+        }
+      });
+      
+      console.log('Updated model materials with properties:', properties);
+    } catch (error) {
+      console.error('Error updating materials:', error);
+    }
+    
+    return this;
+  }
+  
+  /**
+   * Create a more complex test animation with natural movement
+   * @returns {Object} Animation data in the universal format
+   */
+  createComplexTestAnimation() {
+    const frames = [];
+    const frameCount = 180; // 6 seconds at 30fps
+    
+    for (let i = 0; i < frameCount; i++) {
+      const t = i / frameCount;
+      const frame = {
+        frameIndex: i,
+        timestamp: i / 30,
+        joints: {}
+      };
+      
+      // Root and Hips movement - slight bouncing and swaying
+      const bounceHeight = Math.sin(t * Math.PI * 4) * 0.03;
+      const swayAmount = Math.sin(t * Math.PI * 2) * 0.02;
+      
+      frame.joints['Root'] = {
+        position: [swayAmount, bounceHeight, 0],
+        rotation: [0, Math.sin(t * Math.PI) * 0.1, 0, Math.sqrt(1 - Math.pow(Math.sin(t * Math.PI) * 0.1, 2))]
+      };
+      
+      frame.joints['Hips'] = {
+        rotation: [Math.sin(t * Math.PI * 2) * 0.05, 0, Math.sin(t * Math.PI * 2) * 0.05, 
+                  Math.sqrt(1 - Math.pow(Math.sin(t * Math.PI * 2) * 0.05, 2) * 2)]
+      };
+      
+      // Spine and upper body movement
+      frame.joints['Spine'] = {
+        rotation: [Math.sin(t * Math.PI * 2 + 0.2) * 0.05, 0, 0, 
+                  Math.sqrt(1 - Math.pow(Math.sin(t * Math.PI * 2 + 0.2) * 0.05, 2))]
+      };
+      
+      frame.joints['Chest'] = {
+        rotation: [Math.sin(t * Math.PI * 2 + 0.4) * 0.03, 0, 0, 
+                  Math.sqrt(1 - Math.pow(Math.sin(t * Math.PI * 2 + 0.4) * 0.03, 2))]
+      };
+      
+      // Head movement - looking around
+      const headTurnX = Math.sin(t * Math.PI * 1.5) * 0.1;
+      const headTurnY = Math.sin(t * Math.PI * 0.8 + 0.5) * 0.15;
+      
+      frame.joints['Neck'] = {
+        rotation: [headTurnX, 0, 0, Math.sqrt(1 - headTurnX * headTurnX)]
+      };
+      
+      frame.joints['Head'] = {
+        rotation: [0, headTurnY, 0, Math.sqrt(1 - headTurnY * headTurnY)]
+      };
+      
+      // Arms movement - more natural swing
+      const armSwingPhase = t * Math.PI * 4;
+      const leftArmSwing = Math.sin(armSwingPhase) * 0.25;
+      const rightArmSwing = Math.sin(armSwingPhase + Math.PI) * 0.25; // Opposite phase
+      
+      frame.joints['LeftShoulder'] = {
+        rotation: [0, 0, 0.3826834, 0.9238795] // Base T-pose adjustment
+      };
+      
+      frame.joints['RightShoulder'] = {
+        rotation: [0, 0, -0.3826834, 0.9238795] // Base T-pose adjustment
+      };
+      
+      frame.joints['LeftArm'] = {
+        rotation: [leftArmSwing, 0, 0, Math.sqrt(1 - leftArmSwing * leftArmSwing)]
+      };
+      
+      frame.joints['RightArm'] = {
+        rotation: [rightArmSwing, 0, 0, Math.sqrt(1 - rightArmSwing * rightArmSwing)]
+      };
+      
+      // Forearms - following the arm movement with slight delay
+      const leftForearmBend = Math.sin(armSwingPhase - 0.2) * 0.15;
+      const rightForearmBend = Math.sin(armSwingPhase + Math.PI - 0.2) * 0.15;
+      
+      frame.joints['LeftForeArm'] = {
+        rotation: [leftForearmBend, 0, 0, Math.sqrt(1 - leftForearmBend * leftForearmBend)]
+      };
+      
+      frame.joints['RightForeArm'] = {
+        rotation: [rightForearmBend, 0, 0, Math.sqrt(1 - rightForearmBend * rightForearmBend)]
+      };
+      
+      // Legs movement - walking cycle
+      const legSwingPhase = t * Math.PI * 4;
+      const leftLegSwing = Math.sin(legSwingPhase) * 0.3;
+      const rightLegSwing = Math.sin(legSwingPhase + Math.PI) * 0.3; // Opposite phase
+      
+      frame.joints['LeftUpLeg'] = {
+        rotation: [leftLegSwing, 0, 0, Math.sqrt(1 - leftLegSwing * leftLegSwing)]
+      };
+      
+      frame.joints['RightUpLeg'] = {
+        rotation: [rightLegSwing, 0, 0, Math.sqrt(1 - rightLegSwing * rightLegSwing)]
+      };
+      
+      // Lower legs - following with knee bend
+      const leftKneeBend = Math.max(0, Math.sin(legSwingPhase - 0.5)) * 0.4;
+      const rightKneeBend = Math.max(0, Math.sin(legSwingPhase + Math.PI - 0.5)) * 0.4;
+      
+      frame.joints['LeftLeg'] = {
+        rotation: [leftKneeBend, 0, 0, Math.sqrt(1 - leftKneeBend * leftKneeBend)]
+      };
+      
+      frame.joints['RightLeg'] = {
+        rotation: [rightKneeBend, 0, 0, Math.sqrt(1 - rightKneeBend * rightKneeBend)]
+      };
+      
+      // Feet - adjust to ground contact
+      const leftFootFlex = Math.max(0, -Math.sin(legSwingPhase)) * 0.2;
+      const rightFootFlex = Math.max(0, -Math.sin(legSwingPhase + Math.PI)) * 0.2;
+      
+      frame.joints['LeftFoot'] = {
+        rotation: [leftFootFlex, 0, 0, Math.sqrt(1 - leftFootFlex * leftFootFlex)]
+      };
+      
+      frame.joints['RightFoot'] = {
+        rotation: [rightFootFlex, 0, 0, Math.sqrt(1 - rightFootFlex * rightFootFlex)]
+      };
+      
+      frames.push(frame);
+    }
+    
+    return {
+      metadata: {
+        name: "Complex Test Animation",
+        frameCount,
+        frameRate: 30,
+        duration: frameCount / 30,
+        dimensions: {
+          width: 640,
+          height: 480
+        }
+      },
+      frames
+    };
+  }
     console.log('Re-initializing model skeleton binding');
     
     if (!this.mesh || !this.skeleton) {
