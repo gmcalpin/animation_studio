@@ -13,6 +13,26 @@ import { YoloPoseMapper } from './yolo-to-skeleton-mapper.js';
  */
 class AnimationSystem {
   constructor(container) {
+// Initialize visualization state
+    this.visualizationState = {
+      skeletonVisible: false,
+      skeletonHelper: null,
+      jointMarkers: [],
+      boneLines: []
+    };
+    
+    // Initialize visualization materials
+    this.visualizationMaterials = {
+      jointMaterial: new THREE.MeshBasicMaterial({ color: 0xffff00 }),
+      boneMaterial: new THREE.LineBasicMaterial({ color: 0x00ffff }),
+      activeBoneMaterial: new THREE.LineBasicMaterial({ color: 0xff00ff }),
+      skeletonMaterial: new THREE.MeshBasicMaterial({ 
+        color: 0xffffff, 
+        wireframe: true,
+        transparent: true,
+        opacity: 0.25
+      })
+    };
     console.log('Setting up Theatre.js project in AnimationSystem');
     
     // Create Theatre.js project and sheet
@@ -873,7 +893,54 @@ if (!this.modelInitialized) {
   }
   
   /**
-   * Load a test animation
+
+/**
+   * Import animation from JSON data
+   * @param {Object} jsonData - Parsed JSON animation data
+   * @returns {Boolean} Success status
+   */
+  async importAnimationFromJSON(jsonData) {
+    try {
+      console.log('Importing animation from JSON data:', jsonData);
+      
+      // Validate the data format
+      if (!jsonData || !jsonData.frames || !Array.isArray(jsonData.frames)) {
+        console.error('Invalid animation data format: missing frames array');
+        return false;
+      }
+      
+      if (!jsonData.metadata) {
+        console.log('Animation metadata missing, creating default metadata');
+        jsonData.metadata = {
+          name: 'Imported Animation',
+          frameRate: 30,
+          duration: jsonData.frames.length / 30,
+          dimensions: { width: 640, height: 480 }
+        };
+      }
+      
+      // Add the animation
+      const index = this.addAnimation(jsonData);
+      
+      if (index >= 0) {
+        console.log('Animation imported successfully at index:', index);
+        
+        // Switch to the newly imported animation
+        this.setCurrentAnimation(index);
+        
+        // Apply the first frame
+        this.applyAnimationFrame(0);
+        
+        return true;
+      } else {
+        console.error('Failed to import animation');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error importing animation from JSON:', error);
+      return false;
+    }
+  }   * Load a test animation
    */
   loadTestAnimation() {
     try {
