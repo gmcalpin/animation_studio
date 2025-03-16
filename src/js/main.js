@@ -26,6 +26,109 @@ console.log('All modules imported successfully');
 // Wait for DOM content to be loaded
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM content loaded, setting up application...');
+// Function to create import/export buttons
+  function createImportExportUI(container, animationSystem) {
+    // Check if container exists
+    if (!container) {
+      console.error('Container element not found for import/export UI');
+      return;
+    }
+    
+    try {
+      // Create UI container
+      const uiContainer = document.createElement('div');
+      uiContainer.className = 'import-export-ui';
+      uiContainer.style.position = 'absolute';
+      uiContainer.style.bottom = '10px';
+      uiContainer.style.right = '10px';
+      uiContainer.style.zIndex = '1000';
+      uiContainer.style.background = 'rgba(0,0,0,0.5)';
+      uiContainer.style.padding = '10px';
+      uiContainer.style.borderRadius = '5px';
+      
+      // Add import button
+      const importBtn = document.createElement('button');
+      importBtn.textContent = 'Import Animation';
+      importBtn.style.marginRight = '10px';
+      importBtn.addEventListener('click', () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        
+        fileInput.addEventListener('change', (event) => {
+          if (event.target.files.length === 0) return;
+          
+          const file = event.target.files[0];
+          const reader = new FileReader();
+          
+          reader.onload = (e) => {
+            try {
+              const jsonData = JSON.parse(e.target.result);
+              if (animationSystem && typeof animationSystem.importAnimationFromJSON === 'function') {
+                animationSystem.importAnimationFromJSON(jsonData);
+              } else {
+                console.error('Animation system or import function not available');
+              }
+            } catch (error) {
+              console.error('Error importing animation:', error);
+            }
+          };
+          
+          reader.readAsText(file);
+        });
+        
+        fileInput.click();
+      });
+      
+      // Add export button
+      const exportBtn = document.createElement('button');
+      exportBtn.textContent = 'Export Animation';
+      exportBtn.addEventListener('click', () => {
+        if (animationSystem && typeof animationSystem.exportAnimationToJSON === 'function') {
+          try {
+            const animationData = animationSystem.exportAnimationToJSON();
+            const blob = new Blob([animationData], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'animation_export.json';
+            a.click();
+            
+            URL.revokeObjectURL(url);
+          } catch (error) {
+            console.error('Error exporting animation:', error);
+          }
+        } else {
+          console.error('Animation system or export function not available');
+        }
+      });
+      
+      // Add visualization toggle button
+      const visualizeBtn = document.createElement('button');
+      visualizeBtn.textContent = 'Toggle Skeleton';
+      visualizeBtn.style.marginLeft = '10px';
+      visualizeBtn.addEventListener('click', () => {
+        if (animationSystem && typeof animationSystem.toggleSkeletonVisualization === 'function') {
+          animationSystem.toggleSkeletonVisualization();
+        } else {
+          console.error('Animation system or visualization function not available');
+        }
+      });
+      
+      // Add buttons to container
+      uiContainer.appendChild(importBtn);
+      uiContainer.appendChild(exportBtn);
+      uiContainer.appendChild(visualizeBtn);
+      
+      // Add container to DOM
+      container.appendChild(uiContainer);
+      
+      console.log('Import/export UI created successfully');
+    } catch (error) {
+      console.error('Error creating import/export UI:', error);
+    }
+  }
   
   // Get the container element
   const container = document.getElementById('animation-container');
@@ -168,8 +271,20 @@ async function initializeApplication(animationSystem) {
           break;
           
         case 'v': // Toggle visualization
-          const visBtn = document.querySelector('button[textContent="Toggle Skeleton Visualization"]');
+          const visBtn = document.querySelector('button[textContent="Toggle Skeleton"]');
           if (visBtn) visBtn.click();
+          break;
+          
+        case '0': // Show frame 0
+          document.getElementById('frame0-btn').click();
+          break;
+          
+        case '1': // Show frame 10
+          document.getElementById('frame10-btn').click();
+          break;
+          
+        case '3': // Show frame 30
+          document.getElementById('frame30-btn').click();
           break;
       }
     } catch (error) {
@@ -236,53 +351,59 @@ async function initializeApplication(animationSystem) {
 
 // Create UI controls
 function createUI(animationSystem) {
-// Handle Theater.js playback events
-document.addEventListener('theatre-playback-change', (event) => {
-  if (!animationSystem || !animationSystem.timelineObj) {
-    console.error('Animation system not available to handle playback change');
-    return;
+// Create import/export UI
+  const container = document.querySelector('#animation-container');
+  if (container) {
+    createImportExportUI(container, animationSystem);
   }
   
-  try {
-    console.log('Received theatre-playback-change event:', event.detail);
-    
-    const { action, time, loop } = event.detail;
-    
-    switch (action) {
-      case 'play':
-        console.log('Starting playback from time:', time);
-        if (typeof animationSystem.startPlayback === 'function') {
-          animationSystem.startPlayback(time, loop);
-        } else {
-          console.warn('startPlayback method not available');
-        }
-        break;
-        
-      case 'pause':
-        console.log('Pausing at time:', time);
-        if (typeof animationSystem.pausePlayback === 'function') {
-          animationSystem.pausePlayback(time);
-        } else {
-          console.warn('pausePlayback method not available');
-        }
-        break;
-        
-      case 'stop':
-        console.log('Stopping and resetting to time:', time);
-        if (typeof animationSystem.stopPlayback === 'function') {
-          animationSystem.stopPlayback();
-        } else {
-          console.warn('stopPlayback method not available');
-        }
-        break;
-        
-      default:
-        console.warn('Unknown playback action:', action);
+  // Handle Theatre.js playback events
+  document.addEventListener('theatre-playback-change', (event) => {
+    if (!animationSystem || !animationSystem.timelineObj) {
+      console.error('Animation system not available to handle playback change');
+      return;
     }
-  } catch (error) {
-    console.error('Error handling theatre-playback-change event:', error);
-  }
-});
+    
+    try {
+      console.log('Received theatre-playback-change event:', event.detail);
+      
+      const { action, time, loop } = event.detail;
+      
+      switch (action) {
+        case 'play':
+          console.log('Starting playback from time:', time);
+          if (typeof animationSystem.startPlayback === 'function') {
+            animationSystem.startPlayback(time, loop);
+          } else {
+            console.warn('startPlayback method not available');
+          }
+          break;
+          
+        case 'pause':
+          console.log('Pausing at time:', time);
+          if (typeof animationSystem.pausePlayback === 'function') {
+            animationSystem.pausePlayback(time);
+          } else {
+            console.warn('pausePlayback method not available');
+          }
+          break;
+          
+        case 'stop':
+          console.log('Stopping and resetting to time:', time);
+          if (typeof animationSystem.stopPlayback === 'function') {
+            animationSystem.stopPlayback();
+          } else {
+            console.warn('stopPlayback method not available');
+          }
+          break;
+          
+        default:
+          console.warn('Unknown playback action:', action);
+      }
+    } catch (error) {
+      console.error('Error handling theatre-playback-change event:', error);
+    }
+  });
   const ui = document.createElement('div');
   ui.style.position = 'absolute';
   ui.style.top = '10px';
@@ -456,66 +577,6 @@ document.addEventListener('theatre-playback-change', (event) => {
 
 // Add export functionality
 function addExportButton(animationSystem) {
-// Add import functionality
-function addImportButton(animationSystem) {
-  const importBtn = document.createElement('button');
-  importBtn.textContent = 'Import Animation';
-  importBtn.style.marginTop = '10px';
-  importBtn.style.marginLeft = '10px';
-  
-  importBtn.addEventListener('click', () => {
-    // Create file input element
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.json';
-    
-    fileInput.addEventListener('change', async (event) => {
-      if (event.target.files.length === 0) return;
-      
-      try {
-        const file = event.target.files[0];
-        const reader = new FileReader();
-        
-        reader.onload = async (e) => {
-          try {
-            const jsonData = JSON.parse(e.target.result);
-            console.log('Importing animation data:', jsonData);
-            
-            if (animationSystem && typeof animationSystem.importAnimationFromJSON === 'function') {
-              await animationSystem.importAnimationFromJSON(jsonData);
-              console.log('Animation imported successfully');
-            } else {
-              console.error('Animation system or import function not available');
-            }
-          } catch (parseError) {
-            console.error('Error parsing imported JSON:', parseError);
-            alert('Invalid animation file format');
-          }
-        };
-        
-        reader.readAsText(file);
-      } catch (error) {
-        console.error('Error reading import file:', error);
-      }
-    });
-    
-    // Trigger file dialog
-    fileInput.click();
-  });
-  
-  // Find the UI container and add the button
-  setTimeout(() => {
-    const container = document.querySelector('div[style*="background: rgba"]');
-    if (container) {
-      container.appendChild(importBtn);
-      console.log('Import button added');
-    } else {
-      console.error('Could not find container for import button');
-    }
-  }, 150);
-  
-  return importBtn;
-}
   const exportBtn = document.createElement('button');
   exportBtn.textContent = 'Export Animation';
   exportBtn.style.marginTop = '10px';
