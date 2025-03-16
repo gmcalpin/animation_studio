@@ -956,20 +956,28 @@ if (!this.modelInitialized) {
     }
   }
   
-  /**
+/**
    * For debugging: directly apply a specific frame
    */
   debugApplyFrame(frameIndex) {
-// Skip frame 0 for debug visualization
+    // Check if we have a valid animation first
+    if (!this.currentAnimation) {
+      console.error('No animation is currently loaded');
+      return;
+    }
+    
+    if (!this.currentAnimation.frames || !Array.isArray(this.currentAnimation.frames)) {
+      console.error('Current animation has no valid frames array');
+      return;
+    }
+    
+    // Skip frame 0 for debug visualization
     if (frameIndex === 0 && this.skipInitialFrame) {
       console.log('Using frame 1 instead of frame 0 for better visualization');
       frameIndex = 1;
     }
-    if (!this.currentAnimation || !this.currentAnimation.frames) {
-      console.error('No animation loaded or no frames available');
-      return;
-    }
     
+    // Validate frame index
     if (frameIndex < 0 || frameIndex >= this.currentAnimation.frames.length) {
       console.error(`Invalid frame index: ${frameIndex}. Animation has ${this.currentAnimation.frames.length} frames.`);
       return;
@@ -982,6 +990,11 @@ if (!this.modelInitialized) {
       if (this.humanoidModel && typeof this.humanoidModel.applyPose === 'function') {
         this.humanoidModel.applyPose(frame);
         console.log('Frame applied successfully');
+        
+        // Update visualization if enabled
+        if (this.visualizationState && this.visualizationState.skeletonVisible) {
+          this.updateSkeletonVisualization();
+        }
       } else {
         console.error('Human model or applyPose method not available for debugging');
       }
