@@ -29,22 +29,40 @@ class AnimationSystem {
     document.addEventListener('theatre-playback-change', (event) => {
       console.log('Received Theatre.js event:', event.detail);
       
+      // Check if timelineState is initialized
+      if (!this.timelineState) {
+        console.error('Timeline state is not initialized, creating it now');
+        this.timelineState = {
+          playback: 'stop',
+          currentTime: 0,
+          loop: true
+        };
+      }
+      
       const { action, time, loop } = event.detail;
       
       // Handle playback actions
-      switch (action) {
-        case 'play':
-          this.timelineState.playback = 'play';
-          break;
-        case 'pause':
-          this.timelineState.playback = 'pause';
-          this.applyAnimationFrame(time);
-          break;
-        case 'stop':
-          this.timelineState.playback = 'stop';
-          this.timelineState.currentTime = 0;
-          this.applyAnimationFrame(0);
-          break;
+      try {
+        console.log('Current timeline state before update:', this.timelineState);
+        
+        switch (action) {
+          case 'play':
+            this.timelineState.playback = 'play';
+            break;
+          case 'pause':
+            this.timelineState.playback = 'pause';
+            this.applyAnimationFrame(time);
+            break;
+          case 'stop':
+            this.timelineState.playback = 'stop';
+            this.timelineState.currentTime = 0;
+            this.applyAnimationFrame(0);
+            break;
+        }
+        
+        console.log('Timeline state updated to:', this.timelineState);
+      } catch (error) {
+        console.error('Error updating timeline state:', error);
       }
     });
     
