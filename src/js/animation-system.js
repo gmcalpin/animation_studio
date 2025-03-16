@@ -13,26 +13,6 @@ import { YoloPoseMapper } from './yolo-to-skeleton-mapper.js';
  */
 class AnimationSystem {
   constructor(container) {
-// Initialize visualization state
-    this.visualizationState = {
-      skeletonVisible: false,
-      skeletonHelper: null,
-      jointMarkers: [],
-      boneLines: []
-    };
-    
-    // Initialize visualization materials
-    this.visualizationMaterials = {
-      jointMaterial: new THREE.MeshBasicMaterial({ color: 0xffff00 }),
-      boneMaterial: new THREE.LineBasicMaterial({ color: 0x00ffff }),
-      activeBoneMaterial: new THREE.LineBasicMaterial({ color: 0xff00ff }),
-      skeletonMaterial: new THREE.MeshBasicMaterial({ 
-        color: 0xffffff, 
-        wireframe: true,
-        transparent: true,
-        opacity: 0.25
-      })
-    };
     console.log('Setting up Theatre.js project in AnimationSystem');
     
     // Create Theatre.js project and sheet
@@ -105,9 +85,6 @@ class AnimationSystem {
       loop: true
     };
     
-    // Track whether we need to skip the initial frame (which often has model/skeleton mismatch)
-    this.skipInitialFrame = true;
-    
     // Set up Three.js
     this.setupThreeJS(container);
     
@@ -115,11 +92,6 @@ class AnimationSystem {
     this.humanoidModel = new GenericHumanoidModel();
     this.humanoidModel.createCompleteModel();
     this.scene.add(this.humanoidModel.scene);
-// Initialize model to T-pose immediately after creation
-    setTimeout(() => {
-      console.log('Initializing model to T-pose after creation');
-      this.resetPose();
-    }, 100);
     
     // Initialize animation data
     this.animations = [];
@@ -338,7 +310,9 @@ class AnimationSystem {
     if (!this.frameCount) this.frameCount = 0;
     this.frameCount++;
     
-    // Removed frame logging to reduce console output
+    if (this.frameCount % 10 === 0) {
+      console.log(`Animation frame ${this.frameCount}, time: ${this.animationState.currentTime.toFixed(2)}s, delta: ${delta.toFixed(4)}s`);
+    }
     
     // Make sure we have an animation to play
     if (!this.currentAnimation) {
@@ -369,7 +343,10 @@ class AnimationSystem {
         }
       }
       
-      // Apply the animation frame (without excessive logging)
+      // Apply the animation frame
+      if (this.frameCount % 10 === 0) {
+        console.log(`Applying animation frame at time ${this.animationState.currentTime.toFixed(2)}s`);
+      }
       this.applyAnimationFrame(this.animationState.currentTime);
     } catch (error) {
       console.error('Error in animation loop:', error);
@@ -517,95 +494,7 @@ class AnimationSystem {
    * Apply animation frame at specific time
    * @param {Number} time - Time in seconds
    */
-applyAnimationFrame(time) {
-    // Debug logging for the first few frames
-    if (!this.frameDebugCount) this.frameDebugCount = 0;
-    
-    // Only log for the first 10 frames
-    if (this.frameDebugCount < 10) {
-      this.frameDebugCount++;
-      console.log(`===== DEBUG FRAME ${this.frameDebugCount}, Time: ${time.toFixed(3)}s =====`);
-      
-      try {
-        // Log model parts positions if available
-        if (this.humanoidModel && this.humanoidModel.mesh) {
-          console.log('MODEL PARTS POSITIONS:');
-          
-          // Log key body parts of the mesh if we can find them
-          const bodyParts = this.humanoidModel.mesh.geometry?.groups || [];
-          if (bodyParts.length > 0) {
-            bodyParts.forEach((part, index) => {
-              console.log(`  Body part ${index}: Start: ${part.start}, Count: ${part.count}`);
-            });
-          }
-          
-          // Log position of the overall model
-          console.log(`  Model position: ${this.humanoidModel.scene.position.x.toFixed(2)}, ${this.humanoidModel.scene.position.y.toFixed(2)}, ${this.humanoidModel.scene.position.z.toFixed(2)}`);
-        }
-        
-        // Log skeleton bone positions if available
-        if (this.humanoidModel && this.humanoidModel.skeleton) {
-          console.log('SKELETON BONES POSITIONS:');
-          
-          // Key bones to examine
-          const keyBones = ['Root', 'Hips', 'Spine', 'Neck', 'Head', 
-                           'LeftShoulder', 'LeftArm', 'RightShoulder', 'RightArm'];
-          
-          this.humanoidModel.skeleton.bones.forEach(bone => {
-            if (keyBones.includes(bone.name)) {
-              // Get world position
-              const worldPos = new THREE.Vector3();
-              bone.getWorldPosition(worldPos);
-              
-              console.log(`  ${bone.name}: Local (${bone.position.x.toFixed(2)}, ${bone.position.y.toFixed(2)}, ${bone.position.z.toFixed(2)}) | ` +
-                         `World (${worldPos.x.toFixed(2)}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)}) | ` +
-                         `Rotation (${bone.rotation.x.toFixed(2)}, ${bone.rotation.y.toFixed(2)}, ${bone.rotation.z.toFixed(2)})`);
-            }
-          });
-        }
-        
-        // Log animation data for this frame
-        if (this.currentAnimation && this.currentAnimation.frames) {
-          const frameIndex = Math.floor(time * this.currentAnimation.metadata.frameRate);
-          const frame = this.currentAnimation.frames[frameIndex];
-          
-          if (frame) {
-            console.log('ANIMATION DATA:');
-            
-            // Log key joints
-            const keyJoints = ['Root', 'Hips', 'LeftShoulder', 'LeftArm', 'RightShoulder', 'RightArm'];
-            
-            keyJoints.forEach(jointName => {
-              if (frame.joints[jointName]) {
-                const joint = frame.joints[jointName];
-                let info = `  ${jointName}: `;
-                
-                if (joint.rotation) {
-                  info += `Rotation [${joint.rotation.map(v => v.toFixed(2)).join(', ')}]`;
-                }
-                
-                if (joint.position) {
-                  info += ` Position [${joint.position.map(v => v.toFixed(2)).join(', ')}]`;
-                }
-                
-                console.log(info);
-              }
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error in debug logging:', error);
-      }
-    }
-// Skip frame 0 for visualization (workaround for model-skeleton mismatch)
-    if (Math.abs(time) < 0.001) {
-      // Apply frame 1 instead, which typically works better
-      if (this.currentAnimation && 
-          this.currentAnimation.frames && 
-          this.currentAnimation.frames.length > 1) {
-        time = 1.0 / this.currentAnimation.metadata.frameRate;
-      }
-    }
+  applyAnimationFrame(time) {
 // Track if this is the first frame being applied
     if (this.isFirstFrame === undefined) {
       this.isFirstFrame = true;
@@ -639,9 +528,6 @@ if (!this.modelInitialized) {
       console.log('Performing one-time model reset');
       this.resetPose();
       this.shouldResetModel = false;
-      
-      // Apply custom arm adjustments after reset
-      this.fixModelArms();
     }
     if (!this.currentAnimation) {
       console.warn('No current animation to apply frame');
@@ -656,7 +542,10 @@ if (!this.modelInitialized) {
         return;
       }
       
-      // Removed logging to reduce console output
+      // Log animation application once in a while
+      if (this.frameCount % 30 === 0) {
+        console.log(`Applying animation frame at time ${time}s, frames:`, frames.length);
+      }
       
       // Find the two closest frames
       const frameIndex = Math.min(
@@ -893,54 +782,7 @@ if (!this.modelInitialized) {
   }
   
   /**
-
-/**
-   * Import animation from JSON data
-   * @param {Object} jsonData - Parsed JSON animation data
-   * @returns {Boolean} Success status
-   */
-  async importAnimationFromJSON(jsonData) {
-    try {
-      console.log('Importing animation from JSON data:', jsonData);
-      
-      // Validate the data format
-      if (!jsonData || !jsonData.frames || !Array.isArray(jsonData.frames)) {
-        console.error('Invalid animation data format: missing frames array');
-        return false;
-      }
-      
-      if (!jsonData.metadata) {
-        console.log('Animation metadata missing, creating default metadata');
-        jsonData.metadata = {
-          name: 'Imported Animation',
-          frameRate: 30,
-          duration: jsonData.frames.length / 30,
-          dimensions: { width: 640, height: 480 }
-        };
-      }
-      
-      // Add the animation
-      const index = this.addAnimation(jsonData);
-      
-      if (index >= 0) {
-        console.log('Animation imported successfully at index:', index);
-        
-        // Switch to the newly imported animation
-        this.setCurrentAnimation(index);
-        
-        // Apply the first frame
-        this.applyAnimationFrame(0);
-        
-        return true;
-      } else {
-        console.error('Failed to import animation');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error importing animation from JSON:', error);
-      return false;
-    }
-  }   * Load a test animation
+   * Load a test animation
    */
   loadTestAnimation() {
     try {
@@ -956,28 +798,15 @@ if (!this.modelInitialized) {
     }
   }
   
-/**
+  /**
    * For debugging: directly apply a specific frame
    */
   debugApplyFrame(frameIndex) {
-    // Check if we have a valid animation first
-    if (!this.currentAnimation) {
-      console.error('No animation is currently loaded');
+    if (!this.currentAnimation || !this.currentAnimation.frames) {
+      console.error('No animation loaded or no frames available');
       return;
     }
     
-    if (!this.currentAnimation.frames || !Array.isArray(this.currentAnimation.frames)) {
-      console.error('Current animation has no valid frames array');
-      return;
-    }
-    
-    // Skip frame 0 for debug visualization
-    if (frameIndex === 0 && this.skipInitialFrame) {
-      console.log('Using frame 1 instead of frame 0 for better visualization');
-      frameIndex = 1;
-    }
-    
-    // Validate frame index
     if (frameIndex < 0 || frameIndex >= this.currentAnimation.frames.length) {
       console.error(`Invalid frame index: ${frameIndex}. Animation has ${this.currentAnimation.frames.length} frames.`);
       return;
@@ -990,11 +819,6 @@ if (!this.modelInitialized) {
       if (this.humanoidModel && typeof this.humanoidModel.applyPose === 'function') {
         this.humanoidModel.applyPose(frame);
         console.log('Frame applied successfully');
-        
-        // Update visualization if enabled
-        if (this.visualizationState && this.visualizationState.skeletonVisible) {
-          this.updateSkeletonVisualization();
-        }
       } else {
         console.error('Human model or applyPose method not available for debugging');
       }
@@ -1030,39 +854,6 @@ if (!this.modelInitialized) {
       }
     } catch (error) {
       console.error('Error resetting pose:', error);
-    }
-  }
-/**
-   * Fix model arms specifically
-   * This is a targeted fix for the arm positioning issue
-   */
-  fixModelArms() {
-    try {
-      if (!this.humanoidModel || !this.humanoidModel.mesh) {
-        console.error('Cannot fix arms - model or mesh not available');
-        return;
-      }
-      
-      console.log('Applying specific fix for model arms');
-      
-      // Create a pose that explicitly fixes arm positions only
-      const armPose = {
-        joints: {
-          // Arms specific adjustments
-          LeftShoulder: { rotation: [0, 0, 0.3826834, 0.9238795] }, // 45 degrees around Z
-          RightShoulder: { rotation: [0, 0, -0.3826834, 0.9238795] }, // -45 degrees around Z
-        }
-      };
-      
-      // Apply just the arm adjustments
-      this.humanoidModel.applyPose(armPose);
-      
-      // Update the scene
-      if (this.humanoidModel.scene) {
-        this.humanoidModel.scene.updateMatrixWorld(true);
-      }
-    } catch (error) {
-      console.error('Error fixing model arms:', error);
     }
   }
   
