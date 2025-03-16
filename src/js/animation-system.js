@@ -318,9 +318,7 @@ class AnimationSystem {
     if (!this.frameCount) this.frameCount = 0;
     this.frameCount++;
     
-    if (this.frameCount % 10 === 0) {
-      console.log(`Animation frame ${this.frameCount}, time: ${this.animationState.currentTime.toFixed(2)}s, delta: ${delta.toFixed(4)}s`);
-    }
+    // Removed frame logging to reduce console output
     
     // Make sure we have an animation to play
     if (!this.currentAnimation) {
