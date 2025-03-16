@@ -164,12 +164,21 @@ function createUI(animationSystem) {
   document.getElementById('play-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        // Use the proper Theatre.js API
-        if (animationSystem.timelineObj.props && animationSystem.timelineObj.props.playback) {
-          animationSystem.timelineObj.props.playback.set('play');
-          console.log('Play button clicked');
+        console.log('Play button clicked, timelineObj:', animationSystem.timelineObj);
+        
+        // Try multiple approaches to handle different Theatre.js versions
+        if (animationSystem.timelineObj.sequence) {
+          console.log('Using sequence API to play');
+          animationSystem.timelineObj.sequence.play();
+        } else if (typeof animationSystem.timelineObj.set === 'function') {
+          console.log('Using direct set to play');
+          animationSystem.timelineObj.set({ playback: 'play' });
         } else {
-          console.error('Cannot find playback property on timeline object');
+          console.log('Using value update to play');
+          animationSystem.timelineObj.value = {
+            ...animationSystem.timelineObj.value,
+            playback: 'play'
+          };
         }
       } catch (error) {
         console.error('Error playing animation:', error);
@@ -182,12 +191,21 @@ function createUI(animationSystem) {
   document.getElementById('pause-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        // Use the proper Theatre.js API
-        if (animationSystem.timelineObj.props && animationSystem.timelineObj.props.playback) {
-          animationSystem.timelineObj.props.playback.set('pause');
-          console.log('Pause button clicked');
+        console.log('Pause button clicked, timelineObj:', animationSystem.timelineObj);
+        
+        // Try multiple approaches to handle different Theatre.js versions
+        if (animationSystem.timelineObj.sequence) {
+          console.log('Using sequence API to pause');
+          animationSystem.timelineObj.sequence.pause();
+        } else if (typeof animationSystem.timelineObj.set === 'function') {
+          console.log('Using direct set to pause');
+          animationSystem.timelineObj.set({ playback: 'pause' });
         } else {
-          console.error('Cannot find playback property on timeline object');
+          console.log('Using value update to pause');
+          animationSystem.timelineObj.value = {
+            ...animationSystem.timelineObj.value,
+            playback: 'pause'
+          };
         }
       } catch (error) {
         console.error('Error pausing animation:', error);
@@ -200,12 +218,26 @@ function createUI(animationSystem) {
   document.getElementById('stop-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        // Use the proper Theatre.js API
-        if (animationSystem.timelineObj.props && animationSystem.timelineObj.props.playback) {
-          animationSystem.timelineObj.props.playback.set('stop');
-          console.log('Stop button clicked');
+        console.log('Stop button clicked, timelineObj:', animationSystem.timelineObj);
+        
+        // Try multiple approaches to handle different Theatre.js versions
+        if (animationSystem.timelineObj.sequence) {
+          console.log('Using sequence API to stop');
+          animationSystem.timelineObj.sequence.pause();
+          animationSystem.timelineObj.sequence.position = 0;
+        } else if (typeof animationSystem.timelineObj.set === 'function') {
+          console.log('Using direct set to stop');
+          animationSystem.timelineObj.set({ 
+            playback: 'stop',
+            currentTime: 0
+          });
         } else {
-          console.error('Cannot find playback property on timeline object');
+          console.log('Using value update to stop');
+          animationSystem.timelineObj.value = {
+            ...animationSystem.timelineObj.value,
+            playback: 'stop',
+            currentTime: 0
+          };
         }
       } catch (error) {
         console.error('Error stopping animation:', error);
