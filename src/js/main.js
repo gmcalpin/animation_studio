@@ -164,22 +164,39 @@ function createUI(animationSystem) {
   document.getElementById('play-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        console.log('Play button clicked, timelineObj:', animationSystem.timelineObj);
+        console.log('Play button clicked');
         
-        // Try multiple approaches to handle different Theatre.js versions
-        if (animationSystem.timelineObj.sequence) {
-          console.log('Using sequence API to play');
-          animationSystem.timelineObj.sequence.play();
-        } else if (typeof animationSystem.timelineObj.set === 'function') {
-          console.log('Using direct set to play');
-          animationSystem.timelineObj.set({ playback: 'play' });
-        } else {
-          console.log('Using value update to play');
-          animationSystem.timelineObj.value = {
-            ...animationSystem.timelineObj.value,
-            playback: 'play'
-          };
+        // Based on the logs, we know Theatre.js objects are immutable
+        // Instead of trying to modify them directly, we'll use the onValuesChange handler
+        
+        // Create a temporary callback-based approach
+        const originalValues = animationSystem.timelineObj.value;
+        
+        // Create a custom event to handle Theatre.js state changes
+        const theatreEvent = new CustomEvent('theatre-playback-change', {
+          detail: {
+            action: 'play',
+            time: originalValues.currentTime,
+            loop: originalValues.loop
+          }
+        });
+        
+        // Dispatch the event (AnimationSystem will handle this in its animation loop)
+        document.dispatchEvent(theatreEvent);
+        
+        // Update Theatre.js object using the correct API
+        const obj = animationSystem.timelineObj;
+        // We need to use the proper API - from the logs we know onValuesChange works
+        // But we can only read from .value, not write to it
+        
+        // Update our manual tracker in AnimationSystem
+        if (animationSystem.timelineState) {
+          animationSystem.timelineState.playback = 'play';
         }
+        
+        // The best way to use Theatre.js is to call animations directly
+        // Since we can't modify Theatre.js state, we'll make the animation
+        // look at our timelineState instead
       } catch (error) {
         console.error('Error playing animation:', error);
       }
@@ -191,21 +208,23 @@ function createUI(animationSystem) {
   document.getElementById('pause-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        console.log('Pause button clicked, timelineObj:', animationSystem.timelineObj);
+        console.log('Pause button clicked');
         
-        // Try multiple approaches to handle different Theatre.js versions
-        if (animationSystem.timelineObj.sequence) {
-          console.log('Using sequence API to pause');
-          animationSystem.timelineObj.sequence.pause();
-        } else if (typeof animationSystem.timelineObj.set === 'function') {
-          console.log('Using direct set to pause');
-          animationSystem.timelineObj.set({ playback: 'pause' });
-        } else {
-          console.log('Using value update to pause');
-          animationSystem.timelineObj.value = {
-            ...animationSystem.timelineObj.value,
-            playback: 'pause'
-          };
+        // Create a custom event to handle Theatre.js state changes
+        const theatreEvent = new CustomEvent('theatre-playback-change', {
+          detail: {
+            action: 'pause',
+            time: animationSystem.timelineObj.value.currentTime,
+            loop: animationSystem.timelineObj.value.loop
+          }
+        });
+        
+        // Dispatch the event
+        document.dispatchEvent(theatreEvent);
+        
+        // Update our manual tracker
+        if (animationSystem.timelineState) {
+          animationSystem.timelineState.playback = 'pause';
         }
       } catch (error) {
         console.error('Error pausing animation:', error);
@@ -218,27 +237,28 @@ function createUI(animationSystem) {
   document.getElementById('stop-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
       try {
-        console.log('Stop button clicked, timelineObj:', animationSystem.timelineObj);
+        console.log('Stop button clicked');
         
-        // Try multiple approaches to handle different Theatre.js versions
-        if (animationSystem.timelineObj.sequence) {
-          console.log('Using sequence API to stop');
-          animationSystem.timelineObj.sequence.pause();
-          animationSystem.timelineObj.sequence.position = 0;
-        } else if (typeof animationSystem.timelineObj.set === 'function') {
-          console.log('Using direct set to stop');
-          animationSystem.timelineObj.set({ 
-            playback: 'stop',
-            currentTime: 0
-          });
-        } else {
-          console.log('Using value update to stop');
-          animationSystem.timelineObj.value = {
-            ...animationSystem.timelineObj.value,
-            playback: 'stop',
-            currentTime: 0
-          };
+        // Create a custom event to handle Theatre.js state changes
+        const theatreEvent = new CustomEvent('theatre-playback-change', {
+          detail: {
+            action: 'stop',
+            time: 0,
+            loop: animationSystem.timelineObj.value.loop
+          }
+        });
+        
+        // Dispatch the event
+        document.dispatchEvent(theatreEvent);
+        
+        // Update our manual tracker
+        if (animationSystem.timelineState) {
+          animationSystem.timelineState.playback = 'stop';
+          animationSystem.timelineState.currentTime = 0;
         }
+        
+        // Directly apply the first frame
+        animationSystem.applyAnimationFrame(0);
       } catch (error) {
         console.error('Error stopping animation:', error);
       }
