@@ -95,13 +95,22 @@ class AnimationSystem {
    */
   setupTheatreControls() {
     // Create timeline control
-    this.timelineObj = this.mainSheet.object('Timeline', {
-      playback: types.stringLiteral('stop', {
-        options: ['play', 'stop', 'pause']
-      }),
-      currentTime: types.number(0, { range: [0, 10], step: 0.01 }),
-      loop: types.boolean(true)
-    });
+    try {
+      console.log('Setting up Theatre.js controls');
+      if (!this.mainSheet) {
+        console.error('mainSheet is not initialized');
+        return;
+      }
+      
+      this.timelineObj = this.mainSheet.object('Timeline', {
+        playback: types.stringLiteral('stop', {
+          options: ['play', 'stop', 'pause']
+        }),
+        currentTime: types.number(0, { range: [0, 10], step: 0.01 }),
+        loop: types.boolean(true)
+      });
+      
+      console.log('Timeline object created:', this.timelineObj);
     
     // Create model controls
     this.modelObj = this.mainSheet.object('Model', {
@@ -225,23 +234,51 @@ class AnimationSystem {
     
     this.currentAnimation = this.animations[index];
     
-    // Update Theatre.js timeline
-    this.timelineObj.set({
-      currentTime: 0,
-      playback: 'stop'
-    });
+    // Check if Theatre.js is properly initialized
+    if (!this.timelineObj) {
+      console.error('Timeline object not initialized');
+      return;
+    }
     
-    // Update the timeline range
-    this.project.ready.then(() => {
-      const timelineProp = this.timelineObj.props.currentTime;
-      timelineProp.setMetadata({
-        min: 0,
-        max: this.currentAnimation.metadata.duration,
-      });
-    });
+    try {
+      // Update Theatre.js timeline
+      if (typeof this.timelineObj.set === 'function') {
+        this.timelineObj.set({
+          currentTime: 0,
+          playback: 'stop'
+        });
+      } else {
+        console.error('timelineObj.set is not a function', this.timelineObj);
+      }
+      
+      // Update the timeline range
+      if (this.project && typeof this.project.ready?.then === 'function') {
+        this.project.ready.then(() => {
+          try {
+            const timelineProp = this.timelineObj.props.currentTime;
+            if (timelineProp && typeof timelineProp.setMetadata === 'function') {
+              timelineProp.setMetadata({
+                min: 0,
+                max: this.currentAnimation.metadata.duration,
+              });
+            }
+          } catch (error) {
+            console.error('Error setting timeline metadata:', error);
+          }
+        }).catch(error => {
+          console.error('Error in project.ready promise:', error);
+        });
+      }
+    } catch (error) {
+      console.error('Error updating timeline:', error);
+    }
     
     // Apply first frame
-    this.applyAnimationFrame(0);
+    try {
+      this.applyAnimationFrame(0);
+    } catch (error) {
+      console.error('Error applying initial animation frame:', error);
+    }
   }
   
   /**
@@ -405,26 +442,8 @@ class AnimationSystem {
   }
 }
 
-// Initialize the application when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  const container = document.getElementById('animation-container');
-  if (!container) {
-    console.error('Container element not found');
-    return;
-  }
-  
-  // Create animation system
-  const animationSystem = new AnimationSystem(container);
-  
-  // Load test animation
-  animationSystem.loadTestAnimation();
-  
-  // Expose API to global scope for debugging
-  window.animationSystem = animationSystem;
-  
-  // Add UI controls
-  createUI(animationSystem, container);
-});
+// Remove the automatic initialization - we'll control this from main.js instead
+// The initialization will be handled by main.js
 
 /**
  * Create basic UI for the demo
