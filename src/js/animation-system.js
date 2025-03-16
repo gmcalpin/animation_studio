@@ -25,6 +25,28 @@ class AnimationSystem {
       this.project = null;
       this.mainSheet = null;
     }
+// Add listener for Theatre.js events
+    document.addEventListener('theatre-playback-change', (event) => {
+      console.log('Received Theatre.js event:', event.detail);
+      
+      const { action, time, loop } = event.detail;
+      
+      // Handle playback actions
+      switch (action) {
+        case 'play':
+          this.timelineState.playback = 'play';
+          break;
+        case 'pause':
+          this.timelineState.playback = 'pause';
+          this.applyAnimationFrame(time);
+          break;
+        case 'stop':
+          this.timelineState.playback = 'stop';
+          this.timelineState.currentTime = 0;
+          this.applyAnimationFrame(0);
+          break;
+      }
+    });
     
     // Set up Three.js
     this.setupThreeJS(container);
