@@ -612,15 +612,49 @@ class AnimationSystem {
     }
     
     try {
+      // Create a fresh normalized frame rather than modifying the original
       const normalizedFrame = {
-        joints: { ...frame.joints }
+        joints: {}
       };
+      
+      // For YOLO data, we need to completely restructure the joints
+      // to avoid the scattered parts issue
+      
+      // First, copy all joint rotations but not positions
+      Object.keys(frame.joints).forEach(jointName => {
+        normalizedFrame.joints[jointName] = {};
+        
+        // Copy rotation if it exists
+        if (frame.joints[jointName].rotation) {
+          normalizedFrame.joints[jointName].rotation = [...frame.joints[jointName].rotation];
+        } else {
+          // Default to identity quaternion
+          normalizedFrame.joints[jointName].rotation = [0, 0, 0, 1];
+        }
+        
+        // Initially don't include positions - we'll add them with strict constraints
+      });
       
       // Ensure all positions are within reasonable bounds
       const MAX_DISTANCE = 0.5; // Maximum distance from origin in model space
       
       Object.keys(normalizedFrame.joints).forEach(jointName => {
         const joint = normalizedFrame.joints[jointName];
+// For root-level joints or joints that really need positions,
+        // add minimal position data to keep the model together
+        if (jointName === 'Root' || jointName === 'Hips') {
+          // Allow only minimal vertical adjustment for Hips/Root
+          const originalJoint = frame.joints[jointName];
+          if (originalJoint && originalJoint.position) {
+            joint.position = [
+              0, // Force centered horizontally
+              originalJoint.position[1] * 0.001, // Minimal vertical adjustment
+              0  // Force centered depth
+            ];
+          } else {
+            joint.position = [0, 0, 0]; // Default centered position
+          }
+        }
         
         // Normalize positions if they exist
         if (joint.position) {
