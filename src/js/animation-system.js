@@ -138,6 +138,9 @@ class AnimationSystem {
     this.clock = new THREE.Clock();
     this.animate();
   }
+// Start the Three.js rendering loop
+    console.log('Starting Three.js rendering loop');
+    this.animate();
   
   /**
    * Set up Theatre.js timeline and controls
