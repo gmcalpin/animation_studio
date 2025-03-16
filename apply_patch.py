@@ -315,7 +315,7 @@ def main():
     parser.add_argument("--git-init", action="store_true", help="Initialize a Git repository if one doesn't exist")
     parser.add_argument("--ignore-whitespace", action="store_true", help="Ignore whitespace differences when applying patches")
     parser.add_argument("--safe-mode", action="store_true", help="Restore file to original state if patch application fails")
-parser.add_argument("--git-push", action="store_true", help="Push changes to remote repository after committing")
+    parser.add_argument("--git-push", action="store_true", help="Push changes to remote repository after committing")
     
     args = parser.parse_args()
     
