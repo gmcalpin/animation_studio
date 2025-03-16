@@ -1,0 +1,16 @@
+// REPLACE_SECTION
+import { studio } from '@theatre/studio';
+import { getProject } from '@theatre/core';
+// WITH
+import studio from '@theatre/studio';
+import { getProject } from '@theatre/core';
+// END_REPLACE
+
+// REPLACE_SECTION
+// Initialize Theatre.js
+studio.initialize();
+// WITH
+// Initialize Theatre.js
+studio.initialize();
+console.log('Theatre.js studio initialized');
+// END_REPLACE

@@ -1,0 +1,5 @@
+// REPLACE_SECTION
+import { UniversalSkeleton } from './universal-skeleton.js';
+// WITH
+import { universalSkeleton } from './universal-skeleton.js';
+// END_REPLACE
