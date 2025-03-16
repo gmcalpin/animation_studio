@@ -25,46 +25,65 @@ class AnimationSystem {
       this.project = null;
       this.mainSheet = null;
     }
-// Add listener for Theatre.js events
+    
+    // Initialize animation state
+    this.animationState = {
+      isPlaying: false,
+      currentTime: 0, 
+      loop: true,
+      lastUpdateTime: performance.now() / 1000
+    };
+    
+    // Create a direct reference to the animation loop bound to this instance
+    this.boundAnimationLoop = this.animationLoop.bind(this);
+    
+    console.log('Animation state initialized:', this.animationState);
+    
+    // Add listener for playback control events
     document.addEventListener('theatre-playback-change', (event) => {
-      console.log('Received Theatre.js event:', event.detail);
-      
-      // Check if timelineState is initialized
-      if (!this.timelineState) {
-        console.error('Timeline state is not initialized, creating it now');
-        this.timelineState = {
-          playback: 'stop',
-          currentTime: 0,
-          loop: true
-        };
-      }
+      console.log('Received playback event:', event.detail);
       
       const { action, time, loop } = event.detail;
       
       // Handle playback actions
       try {
-        console.log('Current timeline state before update:', this.timelineState);
+        console.log('Current animation state before update:', this.animationState);
         
         switch (action) {
           case 'play':
-            this.timelineState.playback = 'play';
+            if (!this.animationState.isPlaying) {
+              this.animationState.isPlaying = true;
+              this.animationState.lastUpdateTime = performance.now() / 1000;
+              // Start the animation loop if it's not already running
+              requestAnimationFrame(this.boundAnimationLoop);
+              console.log('Starting animation loop');
+            }
             break;
+            
           case 'pause':
-            this.timelineState.playback = 'pause';
-            this.applyAnimationFrame(time);
+            this.animationState.isPlaying = false;
+            this.applyAnimationFrame(this.animationState.currentTime);
             break;
+            
           case 'stop':
-            this.timelineState.playback = 'stop';
-            this.timelineState.currentTime = 0;
+            this.animationState.isPlaying = false;
+            this.animationState.currentTime = 0;
             this.applyAnimationFrame(0);
             break;
         }
         
-        console.log('Timeline state updated to:', this.timelineState);
+        console.log('Animation state updated to:', this.animationState);
       } catch (error) {
-        console.error('Error updating timeline state:', error);
+        console.error('Error updating animation state:', error);
       }
     });
+    
+    // Store timeline state for Theatre.js integration
+    this.timelineState = {
+      playback: 'stop',
+      currentTime: 0,
+      loop: true
+    };
     
     // Set up Three.js
     this.setupThreeJS(container);
@@ -134,13 +153,10 @@ class AnimationSystem {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     });
     
-    // Animation loop
-    this.clock = new THREE.Clock();
-    this.animate();
-  }
-// Start the Three.js rendering loop
+    // Start the Three.js rendering loop
     console.log('Starting Three.js rendering loop');
     this.animate();
+  }
   
   /**
    * Set up Theatre.js timeline and controls
@@ -152,7 +168,8 @@ class AnimationSystem {
         console.error('mainSheet is not initialized');
         return;
       }
-// Log available Theatre.js APIs to better understand what's available
+      
+      // Log available Theatre.js APIs to better understand what's available
       console.log('Theatre.js APIs:', {
         studio: typeof studio !== 'undefined' ? Object.keys(studio) : 'undefined',
         project: this.project ? Object.keys(this.project) : 'null',
@@ -168,7 +185,8 @@ class AnimationSystem {
       });
       
       console.log('Timeline object created:', this.timelineObj);
-// Examine the timeline object in detail to understand its structure
+      
+      // Examine the timeline object in detail to understand its structure
       console.log('Timeline object detailed examination:');
       console.log('- Constructor name:', this.timelineObj.constructor.name);
       console.log('- Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(this.timelineObj)));
@@ -188,24 +206,37 @@ class AnimationSystem {
           }
         });
       }
-    
-      // Listen for timeline control changes
+      
+      // Store initial values for easy access - this is now done in the constructor
+      console.log('Timeline initialized with settings:', {
+        playback: 'stop',
+        currentTime: 0,
+        loop: true
+      });
+      
+      // Store the new values in our manual state tracker
       this.timelineObj.onValuesChange((values) => {
-        if (!this.currentAnimation) return;
+        // Update our internal state tracker
+        this.timelineState = { ...values };
         
-        const { playback, currentTime, loop } = values;
+        console.log('Timeline values changed:', values);
+        
+        if (!this.currentAnimation) {
+          console.log('No current animation, skipping onValuesChange actions');
+          return;
+        }
         
         // Handle playback state
-        switch (playback) {
+        switch (values.playback) {
           case 'play':
-            // Nothing to do here, animation will play in animate()
+            console.log('Playback state changed to play');
             break;
           case 'pause':
-            // Apply the current frame based on timeline
-            this.applyAnimationFrame(currentTime);
+            console.log('Playback state changed to pause');
+            this.applyAnimationFrame(values.currentTime);
             break;
           case 'stop':
-            // Reset to first frame
+            console.log('Playback state changed to stop');
             this.applyAnimationFrame(0);
             break;
         }
@@ -244,42 +275,83 @@ class AnimationSystem {
   }
   
   /**
-   * Animation loop
+   * Animation loop for Three.js scene rendering
    */
   animate() {
     requestAnimationFrame(() => this.animate());
     
-    const delta = this.clock.getDelta();
-    
-    // Handle animation playback
-    if (this.currentAnimation && this.timelineObj && this.timelineObj.value.playback === 'play') {
-      try {
-        // Update current time
-        let currentTime = this.timelineObj.value.currentTime + delta;
-        
-        // Handle looping
-        if (currentTime >= this.currentAnimation.metadata.duration) {
-          if (this.timelineObj.value.loop) {
-            currentTime = 0;
-          } else {
-            currentTime = this.currentAnimation.metadata.duration;
-            this.timelineObj.set({ playback: 'stop' });
-          }
-        }
-        
-        // Update timeline position
-        this.timelineObj.set({ currentTime });
-        
-        // Apply animation frame
-        this.applyAnimationFrame(currentTime);
-      } catch (error) {
-        console.error('Error during animation playback:', error);
-      }
+    // Update orbit controls and render scene
+    if (this.controls) this.controls.update();
+    if (this.renderer && this.scene && this.camera) {
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+  
+  /**
+   * Animation loop for keyframe animation playback
+   */
+  animationLoop(timestamp) {
+    // Continue the loop if still playing
+    if (this.animationState.isPlaying) {
+      requestAnimationFrame(this.boundAnimationLoop);
+    } else {
+      console.log('Animation playback stopped');
+      return;
     }
     
-    // Render scene
-    this.renderer.render(this.scene, this.camera);
-    this.controls.update();
+    // Convert timestamp to seconds
+    const currentTime = timestamp / 1000;
+    
+    // Calculate time delta
+    const delta = currentTime - this.animationState.lastUpdateTime;
+    this.animationState.lastUpdateTime = currentTime;
+    
+    // Debug output when needed
+    if (!this.frameCount) this.frameCount = 0;
+    this.frameCount++;
+    
+    if (this.frameCount % 10 === 0) {
+      console.log(`Animation frame ${this.frameCount}, time: ${this.animationState.currentTime.toFixed(2)}s, delta: ${delta.toFixed(4)}s`);
+    }
+    
+    // Make sure we have an animation to play
+    if (!this.currentAnimation) {
+      console.warn('No current animation to play');
+      this.animationState.isPlaying = false;
+      return;
+    }
+    
+    try {
+      // Update the current time
+      this.animationState.currentTime += delta;
+      
+      // Also update the Theatre.js timeline state for UI consistency
+      if (this.timelineState) {
+        this.timelineState.currentTime = this.animationState.currentTime;
+      }
+      
+      // Handle looping or stopping
+      if (this.animationState.currentTime >= this.currentAnimation.metadata.duration) {
+        if (this.animationState.loop) {
+          console.log('Animation loop complete, resetting to beginning');
+          this.animationState.currentTime = 0;
+        } else {
+          console.log('Animation complete, stopping');
+          this.animationState.isPlaying = false;
+          this.animationState.currentTime = this.currentAnimation.metadata.duration;
+          return;
+        }
+      }
+      
+      // Apply the animation frame
+      if (this.frameCount % 10 === 0) {
+        console.log(`Applying animation frame at time ${this.animationState.currentTime.toFixed(2)}s`);
+      }
+      this.applyAnimationFrame(this.animationState.currentTime);
+    } catch (error) {
+      console.error('Error in animation loop:', error);
+      this.animationState.isPlaying = false;
+    }
   }
   
   /**
@@ -354,7 +426,7 @@ class AnimationSystem {
       this.applyAnimationFrame(0);
       
       // Check if we can update the timeline range via project.ready
-      if (this.project && typeof this.project.ready?.then === 'function') {
+      if (this.project && this.project.ready && typeof this.project.ready.then === 'function') {
         this.project.ready.then(() => {
           console.log('Project is ready, attempting to update timeline range');
           
@@ -371,34 +443,8 @@ class AnimationSystem {
           console.error('Error in project.ready promise:', error);
         });
       }
-      
-      // Update the timeline range
-      if (this.project && typeof this.project.ready?.then === 'function') {
-        this.project.ready.then(() => {
-          try {
-            const timelineProp = this.timelineObj.props.currentTime;
-            if (timelineProp && typeof timelineProp.setMetadata === 'function') {
-              timelineProp.setMetadata({
-                min: 0,
-                max: this.currentAnimation.metadata.duration,
-              });
-            }
-          } catch (error) {
-            console.error('Error setting timeline metadata:', error);
-          }
-        }).catch(error => {
-          console.error('Error in project.ready promise:', error);
-        });
-      }
     } catch (error) {
       console.error('Error updating timeline:', error);
-    }
-    
-    // Apply first frame
-    try {
-      this.applyAnimationFrame(0);
-    } catch (error) {
-      console.error('Error applying initial animation frame:', error);
     }
   }
   
@@ -449,23 +495,10 @@ class AnimationSystem {
       // Interpolate between frames and apply
       const interpolatedFrame = this.interpolateFrames(frame1, frame2, alpha);
       
-      if (this.humanoidModel) {
-        console.log('Applying pose to humanoid model:', this.humanoidModel);
-        
-        if (typeof this.humanoidModel.applyPose === 'function') {
-          try {
-            console.log('Calling applyPose with frame:', interpolatedFrame);
-            this.humanoidModel.applyPose(interpolatedFrame);
-          } catch (poseError) {
-            console.error('Error in applyPose:', poseError);
-          }
-        } else {
-          // Look for the method
-          console.error('applyPose method not found on humanoid model. Available methods:', 
-            Object.getOwnPropertyNames(Object.getPrototypeOf(this.humanoidModel)));
-        }
+      if (this.humanoidModel && typeof this.humanoidModel.applyPose === 'function') {
+        this.humanoidModel.applyPose(interpolatedFrame);
       } else {
-        console.error('Human model not available');
+        console.error('Human model or applyPose method not available');
       }
     } catch (error) {
       console.error('Error applying animation frame:', error, time);
@@ -624,7 +657,8 @@ class AnimationSystem {
       return -1;
     }
   }
-/**
+  
+  /**
    * For debugging: directly apply a specific frame
    */
   debugApplyFrame(frameIndex) {
@@ -670,6 +704,47 @@ class AnimationSystem {
     } catch (error) {
       console.error('Error resetting pose:', error);
     }
+  }
+/**
+   * Direct method to start animation playback
+   * This provides an alternative to the event system
+   */
+  startPlayback() {
+    console.log('Direct startPlayback method called');
+    
+    try {
+      // Set animation state
+      this.animationState.isPlaying = true;
+      this.animationState.lastUpdateTime = performance.now() / 1000;
+      
+      // Start the animation loop if it's not already running
+      requestAnimationFrame(this.boundAnimationLoop);
+      
+      console.log('Animation playback started directly');
+      return true;
+    } catch (error) {
+      console.error('Error starting playback directly:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Direct method to pause animation playback
+   */
+  pausePlayback() {
+    console.log('Direct pausePlayback method called');
+    this.animationState.isPlaying = false;
+    this.applyAnimationFrame(this.animationState.currentTime);
+  }
+  
+  /**
+   * Direct method to stop animation playback
+   */
+  stopPlayback() {
+    console.log('Direct stopPlayback method called');
+    this.animationState.isPlaying = false;
+    this.animationState.currentTime = 0;
+    this.applyAnimationFrame(0);
   }
 }
 
