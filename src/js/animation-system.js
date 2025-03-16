@@ -403,6 +403,24 @@ class AnimationSystem {
     }
     
     this.currentAnimation = this.animations[index];
+// Apply scale and position adjustment for better visualization
+    if (this.humanoidModel && this.humanoidModel.scene) {
+      // Reset any previous adjustments
+      this.humanoidModel.scene.position.set(0, 0, 0);
+      this.humanoidModel.scene.scale.set(1, 1, 1);
+      
+      // Apply adjustments based on animation type
+      if (this.currentAnimation.metadata.name.includes("YOLO")) {
+        console.log("Applying YOLO-specific adjustments to the model");
+        
+        // Scale the model to better match YOLO proportions
+        const scale = 0.3;
+        this.humanoidModel.scene.scale.set(scale, scale, scale);
+        
+        // Center the model
+        this.humanoidModel.scene.position.set(0, 0, 0);
+      }
+    }
     
     // Check if Theatre.js is properly initialized
     if (!this.timelineObj) {
