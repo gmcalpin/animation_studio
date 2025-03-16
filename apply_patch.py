@@ -293,6 +293,15 @@ def git_commit_changes(file_path, commit_message):
     except subprocess.SubprocessError as e:
         print(f"Error committing changes to Git: {e}")
         return False
+def git_push_changes():
+    """Push committed changes to the remote repository."""
+    try:
+        subprocess.run(['git', 'push'], check=True)
+        print("Changes pushed to remote repository")
+        return True
+    except subprocess.SubprocessError as e:
+        print(f"Error pushing changes to remote repository: {e}")
+        return False
 
 def main():
     parser = argparse.ArgumentParser(description="Apply patches to source files with Git integration")
@@ -306,6 +315,7 @@ def main():
     parser.add_argument("--git-init", action="store_true", help="Initialize a Git repository if one doesn't exist")
     parser.add_argument("--ignore-whitespace", action="store_true", help="Ignore whitespace differences when applying patches")
     parser.add_argument("--safe-mode", action="store_true", help="Restore file to original state if patch application fails")
+parser.add_argument("--git-push", action="store_true", help="Push changes to remote repository after committing")
     
     args = parser.parse_args()
     
@@ -376,6 +386,9 @@ def main():
             
             if not git_commit_changes(args.target_file, commit_message):
                 print("Warning: Changes were applied but could not be committed to Git.")
+elif args.git_push:
+                if not git_push_changes():
+                    print("Warning: Changes were committed but could not be pushed to the remote repository.")
         
         print("Patch applied successfully.")
     except Exception as e:
