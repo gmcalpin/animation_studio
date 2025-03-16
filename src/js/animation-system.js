@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { studio } from '@theatre/studio';
+import studio from '@theatre/studio';
 import { getProject, types } from '@theatre/core';
 import { GenericHumanoidModel } from './generic-model-loader.js';
 import { YoloPoseMapper } from './yolo-to-skeleton-mapper.js';
@@ -12,10 +12,19 @@ import { YoloPoseMapper } from './yolo-to-skeleton-mapper.js';
  * Complete animation system implementation
  */
 class AnimationSystem {
-  constructor(container) {    
+  constructor(container) {
+    console.log('Setting up Theatre.js project in AnimationSystem');
+    
     // Create Theatre.js project and sheet
-    this.project = getProject('Human Animation Demo');
-    this.mainSheet = this.project.sheet('Main Animation');
+    try {
+      this.project = getProject('Human Animation Demo');
+      this.mainSheet = this.project.sheet('Main Animation');
+      console.log('Theatre.js project and sheet created');
+    } catch (error) {
+      console.error('Error setting up Theatre.js project:', error);
+      this.project = null;
+      this.mainSheet = null;
+    }
     
     // Set up Three.js
     this.setupThreeJS(container);
@@ -94,7 +103,6 @@ class AnimationSystem {
    * Set up Theatre.js timeline and controls
    */
   setupTheatreControls() {
-    // Create timeline control
     try {
       console.log('Setting up Theatre.js controls');
       if (!this.mainSheet) {
@@ -112,51 +120,58 @@ class AnimationSystem {
       
       console.log('Timeline object created:', this.timelineObj);
     
+      // Listen for timeline control changes
+      this.timelineObj.onValuesChange((values) => {
+        if (!this.currentAnimation) return;
+        
+        const { playback, currentTime, loop } = values;
+        
+        // Handle playback state
+        switch (playback) {
+          case 'play':
+            // Nothing to do here, animation will play in animate()
+            break;
+          case 'pause':
+            // Apply the current frame based on timeline
+            this.applyAnimationFrame(currentTime);
+            break;
+          case 'stop':
+            // Reset to first frame
+            this.applyAnimationFrame(0);
+            break;
+        }
+      });
+    } catch (error) {
+      console.error('Error setting up Theatre.js controls:', error);
+    }
+    
     // Create model controls
-    this.modelObj = this.mainSheet.object('Model', {
-      position: types.compound({
-        x: types.number(0, { range: [-5, 5], step: 0.01 }),
-        y: types.number(0, { range: [-2, 2], step: 0.01 }),
-        z: types.number(0, { range: [-5, 5], step: 0.01 })
-      }),
-      rotation: types.compound({
-        y: types.number(0, { range: [-Math.PI, Math.PI], step: 0.01 })
-      }),
-      scale: types.number(1, { range: [0.1, 2], step: 0.01 })
-    });
-    
-    // Listen for timeline control changes
-    this.timelineObj.onValuesChange((values) => {
-      if (!this.currentAnimation) return;
+    try {
+      this.modelObj = this.mainSheet.object('Model', {
+        position: types.compound({
+          x: types.number(0, { range: [-5, 5], step: 0.01 }),
+          y: types.number(0, { range: [-2, 2], step: 0.01 }),
+          z: types.number(0, { range: [-5, 5], step: 0.01 })
+        }),
+        rotation: types.compound({
+          y: types.number(0, { range: [-Math.PI, Math.PI], step: 0.01 })
+        }),
+        scale: types.number(1, { range: [0.1, 2], step: 0.01 })
+      });
       
-      const { playback, currentTime, loop } = values;
-      
-      // Handle playback state
-      switch (playback) {
-        case 'play':
-          // Nothing to do here, animation will play in animate()
-          break;
-        case 'pause':
-          // Apply the current frame based on timeline
-          this.applyAnimationFrame(currentTime);
-          break;
-        case 'stop':
-          // Reset to first frame
-          this.applyAnimationFrame(0);
-          break;
-      }
-    });
-    
-    // Listen for model control changes
-    this.modelObj.onValuesChange((values) => {
-      if (!this.humanoidModel) return;
-      
-      const { position, rotation, scale } = values;
-      
-      this.humanoidModel.scene.position.set(position.x, position.y, position.z);
-      this.humanoidModel.scene.rotation.y = rotation.y;
-      this.humanoidModel.scene.scale.set(scale, scale, scale);
-    });
+      // Listen for model control changes
+      this.modelObj.onValuesChange((values) => {
+        if (!this.humanoidModel) return;
+        
+        const { position, rotation, scale } = values;
+        
+        this.humanoidModel.scene.position.set(position.x, position.y, position.z);
+        this.humanoidModel.scene.rotation.y = rotation.y;
+        this.humanoidModel.scene.scale.set(scale, scale, scale);
+      });
+    } catch (error) {
+      console.error('Error setting up model controls:', error);
+    }
   }
   
   /**
@@ -168,25 +183,29 @@ class AnimationSystem {
     const delta = this.clock.getDelta();
     
     // Handle animation playback
-    if (this.currentAnimation && this.timelineObj.value.playback === 'play') {
-      // Update current time
-      let currentTime = this.timelineObj.value.currentTime + delta;
-      
-      // Handle looping
-      if (currentTime >= this.currentAnimation.metadata.duration) {
-        if (this.timelineObj.value.loop) {
-          currentTime = 0;
-        } else {
-          currentTime = this.currentAnimation.metadata.duration;
-          this.timelineObj.set({ playback: 'stop' });
+    if (this.currentAnimation && this.timelineObj && this.timelineObj.value.playback === 'play') {
+      try {
+        // Update current time
+        let currentTime = this.timelineObj.value.currentTime + delta;
+        
+        // Handle looping
+        if (currentTime >= this.currentAnimation.metadata.duration) {
+          if (this.timelineObj.value.loop) {
+            currentTime = 0;
+          } else {
+            currentTime = this.currentAnimation.metadata.duration;
+            this.timelineObj.set({ playback: 'stop' });
+          }
         }
+        
+        // Update timeline position
+        this.timelineObj.set({ currentTime });
+        
+        // Apply animation frame
+        this.applyAnimationFrame(currentTime);
+      } catch (error) {
+        console.error('Error during animation playback:', error);
       }
-      
-      // Update timeline position
-      this.timelineObj.set({ currentTime });
-      
-      // Apply animation frame
-      this.applyAnimationFrame(currentTime);
     }
     
     // Render scene
@@ -200,11 +219,16 @@ class AnimationSystem {
    * @param {Object} metadata - Video metadata
    */
   loadFromYOLO(yoloData, metadata) {
-    const mapper = new YoloPoseMapper();
-    const animation = mapper.processSequence(yoloData, metadata);
-    
-    this.addAnimation(animation);
-    return animation;
+    try {
+      const mapper = new YoloPoseMapper();
+      const animation = mapper.processSequence(yoloData, metadata);
+      
+      this.addAnimation(animation);
+      return animation;
+    } catch (error) {
+      console.error('Error loading from YOLO:', error);
+      return null;
+    }
   }
   
   /**
@@ -212,14 +236,19 @@ class AnimationSystem {
    * @param {Object} animation - Animation data in universal format
    */
   addAnimation(animation) {
-    this.animations.push(animation);
-    
-    // Set as current animation if first one
-    if (this.animations.length === 1) {
-      this.setCurrentAnimation(0);
+    try {
+      this.animations.push(animation);
+      
+      // Set as current animation if first one
+      if (this.animations.length === 1) {
+        this.setCurrentAnimation(0);
+      }
+      
+      return this.animations.length - 1; // Return index
+    } catch (error) {
+      console.error('Error adding animation:', error);
+      return -1;
     }
-    
-    return this.animations.length - 1; // Return index
   }
   
   /**
@@ -241,14 +270,26 @@ class AnimationSystem {
     }
     
     try {
-      // Update Theatre.js timeline
-      if (typeof this.timelineObj.set === 'function') {
-        this.timelineObj.set({
-          currentTime: 0,
-          playback: 'stop'
-        });
+      // Theatre.js objects don't have a direct 'set' method
+      // They expose values through obj.value and can be modified with
+      // obj.address.propertyName.set(value)
+      if (this.timelineObj) {
+        console.log('Updating timeline with Theatre.js API');
+        
+        // Get the current timeline properties
+        const props = this.timelineObj.props;
+        
+        // Update currentTime
+        if (props.currentTime) {
+          props.currentTime.set(0);
+        }
+        
+        // Update playback state
+        if (props.playback) {
+          props.playback.set('stop');
+        }
       } else {
-        console.error('timelineObj.set is not a function', this.timelineObj);
+        console.error('timelineObj is not available', this.timelineObj);
       }
       
       // Update the timeline range
@@ -288,27 +329,31 @@ class AnimationSystem {
   applyAnimationFrame(time) {
     if (!this.currentAnimation) return;
     
-    const { frames, metadata } = this.currentAnimation;
-    
-    // Find the two closest frames
-    const frameIndex = Math.min(
-      Math.floor(time * metadata.frameRate),
-      frames.length - 1
-    );
-    
-    const nextFrameIndex = Math.min(frameIndex + 1, frames.length - 1);
-    
-    const frame1 = frames[frameIndex];
-    const frame2 = frames[nextFrameIndex];
-    
-    // Calculate interpolation factor
-    const frameDuration = 1 / metadata.frameRate;
-    const frameTime = frameIndex * frameDuration;
-    const alpha = (time - frameTime) / frameDuration;
-    
-    // Interpolate between frames and apply
-    const interpolatedFrame = this.interpolateFrames(frame1, frame2, alpha);
-    this.humanoidModel.applyPose(interpolatedFrame);
+    try {
+      const { frames, metadata } = this.currentAnimation;
+      
+      // Find the two closest frames
+      const frameIndex = Math.min(
+        Math.floor(time * metadata.frameRate),
+        frames.length - 1
+      );
+      
+      const nextFrameIndex = Math.min(frameIndex + 1, frames.length - 1);
+      
+      const frame1 = frames[frameIndex];
+      const frame2 = frames[nextFrameIndex];
+      
+      // Calculate interpolation factor
+      const frameDuration = 1 / metadata.frameRate;
+      const frameTime = frameIndex * frameDuration;
+      const alpha = (time - frameTime) / frameDuration;
+      
+      // Interpolate between frames and apply
+      const interpolatedFrame = this.interpolateFrames(frame1, frame2, alpha);
+      this.humanoidModel.applyPose(interpolatedFrame);
+    } catch (error) {
+      console.error('Error applying animation frame:', error);
+    }
   }
   
   /**
@@ -319,95 +364,104 @@ class AnimationSystem {
    * @returns {Object} Interpolated frame
    */
   interpolateFrames(frame1, frame2, alpha) {
-    const result = {
-      joints: {}
-    };
-    
-    // Get all joint names from both frames
-    const jointNames = new Set([
-      ...Object.keys(frame1.joints || {}),
-      ...Object.keys(frame2.joints || {})
-    ]);
-    
-    // Interpolate each joint
-    jointNames.forEach(jointName => {
-      const joint1 = frame1.joints[jointName];
-      const joint2 = frame2.joints[jointName];
+    try {
+      const result = {
+        joints: {}
+      };
       
-      // Skip if joint doesn't exist in both frames
-      if (!joint1 || !joint2) {
-        result.joints[jointName] = joint1 || joint2;
-        return;
-      }
+      // Get all joint names from both frames
+      const jointNames = new Set([
+        ...Object.keys(frame1.joints || {}),
+        ...Object.keys(frame2.joints || {})
+      ]);
       
-      result.joints[jointName] = {};
-      
-      // Interpolate position if it exists
-      if (joint1.position && joint2.position) {
-        result.joints[jointName].position = [
-          joint1.position[0] + (joint2.position[0] - joint1.position[0]) * alpha,
-          joint1.position[1] + (joint2.position[1] - joint1.position[1]) * alpha,
-          joint1.position[2] + (joint2.position[2] - joint1.position[2]) * alpha
-        ];
-      }
-      
-      // Interpolate rotation if it exists
-      if (joint1.rotation && joint2.rotation) {
-        // Create THREE.js quaternions for proper interpolation
-        const q1 = new THREE.Quaternion(
-          joint1.rotation[0],
-          joint1.rotation[1],
-          joint1.rotation[2],
-          joint1.rotation[3]
-        );
+      // Interpolate each joint
+      jointNames.forEach(jointName => {
+        const joint1 = frame1.joints[jointName];
+        const joint2 = frame2.joints[jointName];
         
-        const q2 = new THREE.Quaternion(
-          joint2.rotation[0],
-          joint2.rotation[1],
-          joint2.rotation[2],
-          joint2.rotation[3]
-        );
+        // Skip if joint doesn't exist in both frames
+        if (!joint1 || !joint2) {
+          result.joints[jointName] = joint1 || joint2;
+          return;
+        }
         
-        // Spherical interpolation
-        q1.slerp(q2, alpha);
+        result.joints[jointName] = {};
         
-        result.joints[jointName].rotation = [q1.x, q1.y, q1.z, q1.w];
-      }
-    });
-    
-    return result;
+        // Interpolate position if it exists
+        if (joint1.position && joint2.position) {
+          result.joints[jointName].position = [
+            joint1.position[0] + (joint2.position[0] - joint1.position[0]) * alpha,
+            joint1.position[1] + (joint2.position[1] - joint1.position[1]) * alpha,
+            joint1.position[2] + (joint2.position[2] - joint1.position[2]) * alpha
+          ];
+        }
+        
+        // Interpolate rotation if it exists
+        if (joint1.rotation && joint2.rotation) {
+          // Create THREE.js quaternions for proper interpolation
+          const q1 = new THREE.Quaternion(
+            joint1.rotation[0],
+            joint1.rotation[1],
+            joint1.rotation[2],
+            joint1.rotation[3]
+          );
+          
+          const q2 = new THREE.Quaternion(
+            joint2.rotation[0],
+            joint2.rotation[1],
+            joint2.rotation[2],
+            joint2.rotation[3]
+          );
+          
+          // Spherical interpolation
+          q1.slerp(q2, alpha);
+          
+          result.joints[jointName].rotation = [q1.x, q1.y, q1.z, q1.w];
+        }
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('Error interpolating frames:', error);
+      return frame1; // Return first frame as fallback
+    }
   }
   
   /**
    * Create a new keyframe at the current time
    */
   createKeyframe() {
-    if (!this.currentAnimation) return;
+    if (!this.currentAnimation || !this.timelineObj) return;
     
-    const time = this.timelineObj.value.currentTime;
-    const frameRate = this.currentAnimation.metadata.frameRate;
-    const frameIndex = Math.floor(time * frameRate);
-    
-    // Get current pose
-    const pose = this.getPoseFromModel();
-    
-    // Add or update frame in animation
-    if (frameIndex >= this.currentAnimation.frames.length) {
-      // Add new frame
-      this.currentAnimation.frames.push({
-        frameIndex,
-        timestamp: time,
-        joints: pose.joints
-      });
+    try {
+      const time = this.timelineObj.value.currentTime;
+      const frameRate = this.currentAnimation.metadata.frameRate;
+      const frameIndex = Math.floor(time * frameRate);
       
-      // Sort frames by index
-      this.currentAnimation.frames.sort((a, b) => a.frameIndex - b.frameIndex);
-    } else {
-      // Update existing frame
-      this.currentAnimation.frames[frameIndex].joints = pose.joints;
+      // Get current pose
+      const pose = this.getPoseFromModel();
+      
+      // Add or update frame in animation
+      if (frameIndex >= this.currentAnimation.frames.length) {
+        // Add new frame
+        this.currentAnimation.frames.push({
+          frameIndex,
+          timestamp: time,
+          joints: pose.joints
+        });
+        
+        // Sort frames by index
+        this.currentAnimation.frames.sort((a, b) => a.frameIndex - b.frameIndex);
+      } else {
+        // Update existing frame
+        this.currentAnimation.frames[frameIndex].joints = pose.joints;
+      }
+      
+      console.log('Created keyframe at time:', time);
+    } catch (error) {
+      console.error('Error creating keyframe:', error);
     }
-    
-    console.log('Created keyframe at time:', time);
   }
   
   /**
@@ -430,76 +484,30 @@ class AnimationSystem {
   exportAnimationToJSON() {
     if (!this.currentAnimation) return null;
     
-    return JSON.stringify(this.currentAnimation, null, 2);
+    try {
+      return JSON.stringify(this.currentAnimation, null, 2);
+    } catch (error) {
+      console.error('Error exporting animation to JSON:', error);
+      return null;
+    }
   }
   
   /**
    * Load a test animation
    */
   loadTestAnimation() {
-    const testAnimation = this.humanoidModel.createTestAnimation();
-    return this.addAnimation(testAnimation);
+    try {
+      console.log('Loading test animation...');
+      const testAnimation = this.humanoidModel.createTestAnimation();
+      console.log('Test animation created:', testAnimation);
+      const index = this.addAnimation(testAnimation);
+      console.log('Test animation added at index:', index);
+      return index;
+    } catch (error) {
+      console.error('Error loading test animation:', error);
+      return -1;
+    }
   }
-}
-
-// Remove the automatic initialization - we'll control this from main.js instead
-// The initialization will be handled by main.js
-
-/**
- * Create basic UI for the demo
- */
-function createUI(animationSystem, container) {
-  const ui = document.createElement('div');
-  ui.className = 'animation-ui';
-  ui.style.position = 'absolute';
-  ui.style.top = '10px';
-  ui.style.left = '10px';
-  ui.style.padding = '10px';
-  ui.style.background = 'rgba(0,0,0,0.7)';
-  ui.style.color = 'white';
-  ui.style.borderRadius = '5px';
-  ui.style.fontFamily = 'Arial, sans-serif';
-  
-  // Title
-  const title = document.createElement('h2');
-  title.textContent = 'Animation System Demo';
-  title.style.margin = '0 0 10px 0';
-  ui.appendChild(title);
-  
-  // Description
-  const description = document.createElement('p');
-  description.textContent = 'Test animation loaded. Use Theatre.js timeline to control playback.';
-  description.style.margin = '0 0 15px 0';
-  ui.appendChild(description);
-  
-  // Play button
-  const playButton = document.createElement('button');
-  playButton.textContent = 'Play';
-  playButton.style.marginRight = '5px';
-  playButton.onclick = () => {
-    animationSystem.timelineObj.set({ playback: 'play' });
-  };
-  ui.appendChild(playButton);
-  
-  // Pause button
-  const pauseButton = document.createElement('button');
-  pauseButton.textContent = 'Pause';
-  pauseButton.style.marginRight = '5px';
-  pauseButton.onclick = () => {
-    animationSystem.timelineObj.set({ playback: 'pause' });
-  };
-  ui.appendChild(pauseButton);
-  
-  // Stop button
-  const stopButton = document.createElement('button');
-  stopButton.textContent = 'Stop';
-  stopButton.onclick = () => {
-    animationSystem.timelineObj.set({ playback: 'stop' });
-  };
-  ui.appendChild(stopButton);
-  
-  // Add to container
-  container.appendChild(ui);
 }
 
 export { AnimationSystem };
