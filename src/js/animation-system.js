@@ -497,7 +497,86 @@ class AnimationSystem {
    * Apply animation frame at specific time
    * @param {Number} time - Time in seconds
    */
-  applyAnimationFrame(time) {
+applyAnimationFrame(time) {
+    // Debug logging for the first few frames
+    if (!this.frameDebugCount) this.frameDebugCount = 0;
+    
+    // Only log for the first 10 frames
+    if (this.frameDebugCount < 10) {
+      this.frameDebugCount++;
+      console.log(`===== DEBUG FRAME ${this.frameDebugCount}, Time: ${time.toFixed(3)}s =====`);
+      
+      try {
+        // Log model parts positions if available
+        if (this.humanoidModel && this.humanoidModel.mesh) {
+          console.log('MODEL PARTS POSITIONS:');
+          
+          // Log key body parts of the mesh if we can find them
+          const bodyParts = this.humanoidModel.mesh.geometry?.groups || [];
+          if (bodyParts.length > 0) {
+            bodyParts.forEach((part, index) => {
+              console.log(`  Body part ${index}: Start: ${part.start}, Count: ${part.count}`);
+            });
+          }
+          
+          // Log position of the overall model
+          console.log(`  Model position: ${this.humanoidModel.scene.position.x.toFixed(2)}, ${this.humanoidModel.scene.position.y.toFixed(2)}, ${this.humanoidModel.scene.position.z.toFixed(2)}`);
+        }
+        
+        // Log skeleton bone positions if available
+        if (this.humanoidModel && this.humanoidModel.skeleton) {
+          console.log('SKELETON BONES POSITIONS:');
+          
+          // Key bones to examine
+          const keyBones = ['Root', 'Hips', 'Spine', 'Neck', 'Head', 
+                           'LeftShoulder', 'LeftArm', 'RightShoulder', 'RightArm'];
+          
+          this.humanoidModel.skeleton.bones.forEach(bone => {
+            if (keyBones.includes(bone.name)) {
+              // Get world position
+              const worldPos = new THREE.Vector3();
+              bone.getWorldPosition(worldPos);
+              
+              console.log(`  ${bone.name}: Local (${bone.position.x.toFixed(2)}, ${bone.position.y.toFixed(2)}, ${bone.position.z.toFixed(2)}) | ` +
+                         `World (${worldPos.x.toFixed(2)}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)}) | ` +
+                         `Rotation (${bone.rotation.x.toFixed(2)}, ${bone.rotation.y.toFixed(2)}, ${bone.rotation.z.toFixed(2)})`);
+            }
+          });
+        }
+        
+        // Log animation data for this frame
+        if (this.currentAnimation && this.currentAnimation.frames) {
+          const frameIndex = Math.floor(time * this.currentAnimation.metadata.frameRate);
+          const frame = this.currentAnimation.frames[frameIndex];
+          
+          if (frame) {
+            console.log('ANIMATION DATA:');
+            
+            // Log key joints
+            const keyJoints = ['Root', 'Hips', 'LeftShoulder', 'LeftArm', 'RightShoulder', 'RightArm'];
+            
+            keyJoints.forEach(jointName => {
+              if (frame.joints[jointName]) {
+                const joint = frame.joints[jointName];
+                let info = `  ${jointName}: `;
+                
+                if (joint.rotation) {
+                  info += `Rotation [${joint.rotation.map(v => v.toFixed(2)).join(', ')}]`;
+                }
+                
+                if (joint.position) {
+                  info += ` Position [${joint.position.map(v => v.toFixed(2)).join(', ')}]`;
+                }
+                
+                console.log(info);
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error in debug logging:', error);
+      }
+    }
 // Skip frame 0 for visualization (workaround for model-skeleton mismatch)
     if (Math.abs(time) < 0.001) {
       // Apply frame 1 instead, which typically works better
