@@ -404,10 +404,23 @@ class AnimationSystem {
    * @param {Number} time - Time in seconds
    */
   applyAnimationFrame(time) {
-    if (!this.currentAnimation) return;
+    if (!this.currentAnimation) {
+      console.warn('No current animation to apply frame');
+      return;
+    }
     
     try {
       const { frames, metadata } = this.currentAnimation;
+      
+      if (!frames || !frames.length) {
+        console.warn('Animation has no frames');
+        return;
+      }
+      
+      // Log animation application once in a while
+      if (this.frameCount % 30 === 0) {
+        console.log(`Applying animation frame at time ${time}s, frames:`, frames.length);
+      }
       
       // Find the two closest frames
       const frameIndex = Math.min(
@@ -420,6 +433,11 @@ class AnimationSystem {
       const frame1 = frames[frameIndex];
       const frame2 = frames[nextFrameIndex];
       
+      if (!frame1) {
+        console.warn(`Frame at index ${frameIndex} not found`);
+        return;
+      }
+      
       // Calculate interpolation factor
       const frameDuration = 1 / metadata.frameRate;
       const frameTime = frameIndex * frameDuration;
@@ -427,9 +445,14 @@ class AnimationSystem {
       
       // Interpolate between frames and apply
       const interpolatedFrame = this.interpolateFrames(frame1, frame2, alpha);
-      this.humanoidModel.applyPose(interpolatedFrame);
+      
+      if (this.humanoidModel && typeof this.humanoidModel.applyPose === 'function') {
+        this.humanoidModel.applyPose(interpolatedFrame);
+      } else {
+        console.error('Human model or applyPose method not available');
+      }
     } catch (error) {
-      console.error('Error applying animation frame:', error);
+      console.error('Error applying animation frame:', error, time);
     }
   }
   
