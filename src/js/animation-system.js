@@ -109,6 +109,12 @@ class AnimationSystem {
         console.error('mainSheet is not initialized');
         return;
       }
+// Log available Theatre.js APIs to better understand what's available
+      console.log('Theatre.js APIs:', {
+        studio: typeof studio !== 'undefined' ? Object.keys(studio) : 'undefined',
+        project: this.project ? Object.keys(this.project) : 'null',
+        mainSheet: this.mainSheet ? Object.keys(this.mainSheet) : 'null'
+      });
       
       this.timelineObj = this.mainSheet.object('Timeline', {
         playback: types.stringLiteral('stop', {
@@ -119,6 +125,26 @@ class AnimationSystem {
       });
       
       console.log('Timeline object created:', this.timelineObj);
+// Examine the timeline object in detail to understand its structure
+      console.log('Timeline object detailed examination:');
+      console.log('- Constructor name:', this.timelineObj.constructor.name);
+      console.log('- Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(this.timelineObj)));
+      console.log('- Own properties:', Object.keys(this.timelineObj));
+      console.log('- Value property:', this.timelineObj.value);
+      
+      if (this.timelineObj.value) {
+        console.log('- Value keys:', Object.keys(this.timelineObj.value));
+      }
+      
+      if (this.timelineObj.props) {
+        console.log('- Props keys:', Object.keys(this.timelineObj.props));
+        Object.keys(this.timelineObj.props).forEach(key => {
+          console.log(`- Prop '${key}':`, this.timelineObj.props[key]);
+          if (this.timelineObj.props[key]) {
+            console.log(`  - Methods:`, Object.getOwnPropertyNames(Object.getPrototypeOf(this.timelineObj.props[key])));
+          }
+        });
+      }
     
       // Listen for timeline control changes
       this.timelineObj.onValuesChange((values) => {
