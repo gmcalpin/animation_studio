@@ -845,9 +845,37 @@ class AnimationSystem {
     console.log('Direct startPlayback method called');
     
     try {
+      // Ensure we have animation data
+      if (!this.currentAnimation || !this.currentAnimation.frames || this.currentAnimation.frames.length === 0) {
+        console.warn('No animation data available to play');
+        
+        // Try loading test animation as fallback
+        if (!this.currentAnimation) {
+          console.log('Attempting to load test animation');
+          this.loadTestAnimation();
+        }
+        
+        if (!this.currentAnimation) {
+          console.error('Failed to load any animation');
+          return false;
+        }
+      }
+      
+      console.log('Starting playback of animation:', 
+                  this.currentAnimation.metadata?.name || 'Unnamed animation',
+                  'with', this.currentAnimation.frames?.length || 0, 'frames');
+      
+      // Reset position if needed
+      if (this.frameCount === undefined || this.frameCount > 200) {
+        this.animationState.currentTime = 0;
+      }
+      
       // Set animation state
       this.animationState.isPlaying = true;
       this.animationState.lastUpdateTime = performance.now() / 1000;
+      
+      // Apply the first frame immediately
+      this.applyAnimationFrame(this.animationState.currentTime);
       
       // Start the animation loop if it's not already running
       requestAnimationFrame(this.boundAnimationLoop);
