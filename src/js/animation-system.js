@@ -425,6 +425,23 @@ class AnimationSystem {
       }
     }
     
+    // Reset the model to T-pose before applying any animation
+    // This ensures all body parts are properly connected
+    console.log('Resetting model to T-pose before setting current animation');
+    this.resetPose();
+    
+    // Delay slightly to ensure the reset has applied before we start animating
+    setTimeout(() => {
+      // Force a reset of the model to ensure all meshes are properly attached
+      console.log('Re-initializing model skeleton');
+      if (this.humanoidModel && typeof this.humanoidModel.initializeSkeleton === 'function') {
+        this.humanoidModel.initializeSkeleton();
+      }
+      
+      // Apply the first frame after reset
+      this.applyAnimationFrame(0);
+    }, 100);
+    
     // Check if Theatre.js is properly initialized
     if (!this.timelineObj) {
       console.error('Timeline object not initialized');
@@ -805,6 +822,11 @@ class AnimationSystem {
    * For debugging: directly apply a specific frame
    */
   debugApplyFrame(frameIndex) {
+// Reset pose first to ensure proper binding
+    this.resetPose();
+    
+    // Wait a moment for the reset to apply
+    setTimeout(() => {
     if (!this.currentAnimation || !this.currentAnimation.frames) {
       console.error('No animation loaded or no frames available');
       return;
