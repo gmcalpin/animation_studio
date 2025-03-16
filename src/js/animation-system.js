@@ -92,6 +92,11 @@ class AnimationSystem {
     this.humanoidModel = new GenericHumanoidModel();
     this.humanoidModel.createCompleteModel();
     this.scene.add(this.humanoidModel.scene);
+// Initialize model to T-pose immediately after creation
+    setTimeout(() => {
+      console.log('Initializing model to T-pose after creation');
+      this.resetPose();
+    }, 100);
     
     // Initialize animation data
     this.animations = [];
