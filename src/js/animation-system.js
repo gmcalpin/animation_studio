@@ -403,6 +403,27 @@ class AnimationSystem {
     }
     
     this.currentAnimation = this.animations[index];
+// First, completely reset the model to ensure proper binding
+    if (this.humanoidModel) {
+      console.log('Completely resetting model before setting animation');
+      
+      // Remove and re-add the model to force a fresh state
+      if (this.humanoidModel.scene && this.humanoidModel.scene.parent) {
+        this.scene.remove(this.humanoidModel.scene);
+      }
+      
+      // Create a fresh model
+      this.humanoidModel = new GenericHumanoidModel();
+      this.humanoidModel.createCompleteModel();
+      
+      // Add back to scene with proper scale
+      this.scene.add(this.humanoidModel.scene);
+      const scale = 0.5;
+      this.humanoidModel.scene.scale.set(scale, scale, scale);
+      this.humanoidModel.scene.position.set(0, 0.5, 0);
+      
+      console.log('Model has been completely reset');
+    }
     
     // Apply scale and position adjustment for better visualization
     if (this.humanoidModel && this.humanoidModel.scene) {
@@ -424,25 +445,6 @@ class AnimationSystem {
         this.humanoidModel.scene.position.set(0, 0.5, 0);
       }
     }
-    
-    // Reset the model to T-pose before applying any animation
-    // This ensures all body parts are properly connected
-    console.log('Resetting model to T-pose before setting current animation');
-    this.resetPose();
-    
-    // Delay slightly to ensure the reset has applied before we start animating
-    setTimeout(() => {
-      // Force a reset of the model to ensure all meshes are properly attached
-      console.log('Re-initializing model skeleton');
-      if (this.humanoidModel && typeof this.humanoidModel.initializeSkeleton === 'function') {
-        this.humanoidModel.initializeSkeleton();
-      }
-      
-      // Apply the first frame after reset
-this.applyAnimationFrame(0);
-    }, 100);
-      this.applyAnimationFrame(0);
-    }, 100);
     
     // Check if Theatre.js is properly initialized
     if (!this.timelineObj) {
@@ -493,6 +495,28 @@ this.applyAnimationFrame(0);
    * @param {Number} time - Time in seconds
    */
   applyAnimationFrame(time) {
+// Track if this is the first frame being applied
+    if (this.isFirstFrame === undefined) {
+      this.isFirstFrame = true;
+    }
+    
+    // Special initialization for first frame
+    if (this.isFirstFrame) {
+      console.log('Applying first animation frame - performing extra initialization');
+      
+      // Reset pose to ensure model is in a known state
+      this.resetPose();
+      
+      // No longer the first frame
+      this.isFirstFrame = false;
+    }
+if (!this.modelInitialized) {
+  console.log('Initializing model for first animation frame');
+  // Reset the model pose
+  this.resetPose();
+  this.modelInitialized = true;
+}
+
 // Fix for model parts not moving with skeleton
     // Before applying any animation, ensure the model is in reset state
     if (this.shouldResetModel === undefined) {
@@ -632,6 +656,7 @@ this.applyAnimationFrame(0);
     }
   }
   
+
   /**
    * Normalize a frame to ensure the model stays together
    * @param {Object} frame - Animation frame
@@ -643,92 +668,45 @@ this.applyAnimationFrame(0);
     }
     
     try {
-      // Create a fresh normalized frame rather than modifying the original
+      // Create a fresh normalized frame 
       const normalizedFrame = {
         joints: {}
       };
       
-      // For YOLO data, we need to completely restructure the joints
-      // to avoid the scattered parts issue
-      
-      // First, copy all joint rotations but not positions
+      // Only use rotations for all joints except Root
       Object.keys(frame.joints).forEach(jointName => {
         normalizedFrame.joints[jointName] = {};
         
-        // Copy rotation if it exists
+        // Get rotation from original frame
         if (frame.joints[jointName].rotation) {
           normalizedFrame.joints[jointName].rotation = [...frame.joints[jointName].rotation];
+          
+          // Ensure rotations are valid quaternions
+          const magnitude = Math.sqrt(
+            normalizedFrame.joints[jointName].rotation[0] * normalizedFrame.joints[jointName].rotation[0] +
+            normalizedFrame.joints[jointName].rotation[1] * normalizedFrame.joints[jointName].rotation[1] +
+            normalizedFrame.joints[jointName].rotation[2] * normalizedFrame.joints[jointName].rotation[2] +
+            normalizedFrame.joints[jointName].rotation[3] * normalizedFrame.joints[jointName].rotation[3]
+          );
+          
+          // Replace invalid quaternions with identity
+          if (isNaN(magnitude) || magnitude < 0.1) {
+            normalizedFrame.joints[jointName].rotation = [0, 0, 0, 1];
+          }
+          // Normalize quaternions that are not unit length
+          else if (Math.abs(magnitude - 1.0) > 0.01) {
+            normalizedFrame.joints[jointName].rotation = normalizedFrame.joints[jointName].rotation.map(v => v / magnitude);
+          }
         } else {
-          // Default to identity quaternion
+          // Default to identity rotation
           normalizedFrame.joints[jointName].rotation = [0, 0, 0, 1];
         }
         
-        // Initially don't include positions - we'll add them with strict constraints
-      });
-      
-      // Ensure all positions are within reasonable bounds
-      const MAX_DISTANCE = 0.5; // Maximum distance from origin in model space
-      
-      Object.keys(normalizedFrame.joints).forEach(jointName => {
-        const joint = normalizedFrame.joints[jointName];
-// For root-level joints or joints that really need positions,
-        // add minimal position data to keep the model together
-        if (jointName === 'Root' || jointName === 'Hips') {
-          // Allow only minimal vertical adjustment for Hips/Root
-          const originalJoint = frame.joints[jointName];
-          if (originalJoint && originalJoint.position) {
-            joint.position = [
-              0, // Force centered horizontally
-              originalJoint.position[1] * 0.001, // Minimal vertical adjustment
-              0  // Force centered depth
-            ];
-          } else {
-            joint.position = [0, 0, 0]; // Default centered position
-          }
-        }
-        
-        // Normalize positions if they exist
-        if (joint.position) {
-          // Apply stronger normalization for YOLO data
-          // This helps keep the model together
-          
-          // Scale down positions to keep them within reasonable bounds
-          // Use a much smaller scale factor for YOLO data
-          const scaleFactor = 0.005; // Very small scale factor to keep parts together
-          
-          joint.position = [
-            joint.position[0] * scaleFactor,
-            joint.position[1] * scaleFactor,
-            joint.position[2] * scaleFactor
-          ];
-          
-          // Additional clamping for extreme values
-          joint.position = joint.position.map(value => {
-            if (Math.abs(value) > MAX_DISTANCE) {
-              return Math.sign(value) * MAX_DISTANCE;
-            }
-            return value;
-          });
-        }
-        
-        // Ensure rotations are valid quaternions
-        if (joint.rotation) {
-          // Make sure quaternion is normalized
-          const magnitude = Math.sqrt(
-            joint.rotation[0] * joint.rotation[0] +
-            joint.rotation[1] * joint.rotation[1] +
-            joint.rotation[2] * joint.rotation[2] +
-            joint.rotation[3] * joint.rotation[3]
-          );
-          
-          // If magnitude is too small or NaN, replace with identity quaternion
-          if (isNaN(magnitude) || magnitude < 0.1) {
-            joint.rotation = [0, 0, 0, 1];
-          } 
-          // Otherwise normalize the quaternion
-          else if (Math.abs(magnitude - 1.0) > 0.01) {
-            joint.rotation = joint.rotation.map(value => value / magnitude);
-          }
+        // Only assign position to Root joint
+        if (jointName === 'Root' && frame.joints[jointName].position) {
+          // Use very small scale factor for position
+          const scaleFactor = 0.001;
+          normalizedFrame.joints[jointName].position = frame.joints[jointName].position.map(v => v * scaleFactor);
         }
       });
       
@@ -824,11 +802,6 @@ this.applyAnimationFrame(0);
    * For debugging: directly apply a specific frame
    */
   debugApplyFrame(frameIndex) {
-// Reset pose first to ensure proper binding
-    this.resetPose();
-    
-    // Wait a moment for the reset to apply
-    setTimeout(() => {
     if (!this.currentAnimation || !this.currentAnimation.frames) {
       console.error('No animation loaded or no frames available');
       return;
@@ -860,40 +833,24 @@ this.applyAnimationFrame(0);
   resetPose() {
     try {
       if (this.humanoidModel) {
-        // Create a default pose with neutral positions and rotations
-        // for all possible joints in the skeleton
+        // Create a default pose with identity rotations for all possible joints
         const defaultPose = {
           joints: {}
         };
         
-        // Add identity rotations for all possible joints
-        // This ensures the model returns to its default T-pose
-        const possibleJoints = [
-          'Root', 'Hips', 'Spine', 'Chest', 'Neck', 'Head',
-          'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
-          'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
-          'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase',
-          'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase'
-        ];
+        // Add identity rotations for common joints
+        ['Root', 'Hips', 'Spine', 'Chest', 'Neck', 'Head', 
+         'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
+         'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
+         'LeftUpLeg', 'LeftLeg', 'LeftFoot',
+         'RightUpLeg', 'RightLeg', 'RightFoot'].forEach(jointName => {
+           defaultPose.joints[jointName] = {
+             rotation: [0, 0, 0, 1] // Identity quaternion
+           };
+         });
         
-        possibleJoints.forEach(jointName => {
-          defaultPose.joints[jointName] = {
-            rotation: [0, 0, 0, 1] // Identity quaternion
-          };
-          
-          // Only add position for root
-          if (jointName === 'Root') {
-            defaultPose.joints[jointName].position = [0, 0, 0];
-          }
-        });
-        
-        console.log('Resetting model to default pose with identity rotations');
+        console.log('Resetting model to default pose');
         this.humanoidModel.applyPose(defaultPose);
-        
-        // Wait a frame to ensure pose is applied
-        setTimeout(() => {
-          console.log('Model reset complete');
-        }, 50);
       }
     } catch (error) {
       console.error('Error resetting pose:', error);
