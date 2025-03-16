@@ -314,34 +314,48 @@ document.addEventListener('theatre-playback-change', (event) => {
   
   // Add event listeners with error handling
   document.getElementById('play-btn').addEventListener('click', () => {
-    if (animationSystem) {
+    if (animationSystem && animationSystem.timelineObj) {
       try {
-        console.log('Play button clicked - triggering animation');
-      
-        // Create a custom event with simpler structure
-        const playEvent = new CustomEvent('theatre-playback-change', {
+        console.log('Play button clicked');
+        
+        // Based on the logs, we know Theatre.js objects are immutable
+        // Instead of trying to modify them directly, we'll use the onValuesChange handler
+        
+        // Create a temporary callback-based approach
+        const originalValues = animationSystem.timelineObj.value;
+        
+        // Create a custom event to handle Theatre.js state changes
+        const theatreEvent = new CustomEvent('theatre-playback-change', {
           detail: {
             action: 'play',
-            time: 0,
-            loop: true
+            time: originalValues.currentTime,
+            loop: originalValues.loop
           }
-      });
-      
-      // Dispatch the event
-      document.dispatchEvent(playEvent);
-      
-      // Also try direct method for backwards compatibility
-      if (typeof animationSystem.startPlayback === 'function') {
-        animationSystem.startPlayback();
+        });
+        
+        // Dispatch the event (AnimationSystem will handle this in its animation loop)
+        document.dispatchEvent(theatreEvent);
+        
+        // Update Theatre.js object using the correct API
+        const obj = animationSystem.timelineObj;
+        // We need to use the proper API - from the logs we know onValuesChange works
+        // But we can only read from .value, not write to it
+        
+        // Update our manual tracker in AnimationSystem
+        if (animationSystem.timelineState) {
+          animationSystem.timelineState.playback = 'play';
+        }
+        
+        // The best way to use Theatre.js is to call animations directly
+        // Since we can't modify Theatre.js state, we'll make the animation
+        // look at our timelineState instead
+      } catch (error) {
+        console.error('Error playing animation:', error);
       }
-      
-    } catch (error) {
-      console.error('Error in play button handler:', error);
+    } else {
+      console.error('Animation system or timeline not available');
     }
-  } else {
-      console.error('Animation system not available');
-    }
-      });
+  });
   
   document.getElementById('pause-btn').addEventListener('click', () => {
     if (animationSystem && animationSystem.timelineObj) {
