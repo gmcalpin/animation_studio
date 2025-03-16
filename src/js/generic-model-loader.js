@@ -119,191 +119,198 @@ class GenericHumanoidModel {
     return group;
   }
   
-  /**
+/**
    * Create a simple humanoid mesh and bind it to the skeleton
    */
   createMesh() {
-    // Create a simplified humanoid mesh
-    const bodyParts = [
+    console.log('Creating improved humanoid mesh with better bone binding');
+    
+    // Use a different approach with individual meshes for better control
+    this.bodyParts = [];
+    
+    // Define body parts with improved positioning relative to bones
+    const partDefinitions = [
       // Torso
       { 
+        name: 'Torso',
         geometry: new THREE.BoxGeometry(0.4, 0.6, 0.2), 
-        position: [0, 1.05, 0],
-        bone: 'Chest' 
+        bone: 'Chest',
+        offset: [0, 0, 0],  // Offset from bone position
+        rotation: [0, 0, 0] // Initial rotation
       },
       // Hips
       { 
+        name: 'Hips',
         geometry: new THREE.BoxGeometry(0.35, 0.2, 0.2), 
-        position: [0, 0.8, 0],
-        bone: 'Hips' 
+        bone: 'Hips',
+        offset: [0, 0, 0],
+        rotation: [0, 0, 0]
       },
       // Head
       { 
+        name: 'Head',
         geometry: new THREE.SphereGeometry(0.12, 16, 16), 
-        position: [0, 1.45, 0],
-        bone: 'Head' 
+        bone: 'Head',
+        offset: [0, 0.06, 0], // Offset to center head on neck
+        rotation: [0, 0, 0]
       },
       // Left upper arm
       { 
+        name: 'LeftUpperArm',
         geometry: new THREE.CylinderGeometry(0.05, 0.05, 0.28, 8), 
-        position: [-0.25, 1.25, 0],
-        rotation: [0, 0, Math.PI / 2],
-        bone: 'LeftArm' 
+        bone: 'LeftArm',
+        offset: [-0.14, 0, 0], // Offset from shoulder
+        rotation: [0, 0, Math.PI / 2] // Rotate cylinder to align with arm
       },
       // Right upper arm
       { 
+        name: 'RightUpperArm',
         geometry: new THREE.CylinderGeometry(0.05, 0.05, 0.28, 8), 
-        position: [0.25, 1.25, 0],
-        rotation: [0, 0, -Math.PI / 2],
-        bone: 'RightArm' 
+        bone: 'RightArm',
+        offset: [0.14, 0, 0], // Offset from shoulder
+        rotation: [0, 0, -Math.PI / 2] // Rotate cylinder
       },
       // Left forearm
       { 
+        name: 'LeftForearm',
         geometry: new THREE.CylinderGeometry(0.04, 0.05, 0.26, 8), 
-        position: [-0.5, 1.25, 0],
-        rotation: [0, 0, Math.PI / 2],
-        bone: 'LeftForeArm' 
+        bone: 'LeftForeArm',
+        offset: [-0.13, 0, 0], // Offset from elbow
+        rotation: [0, 0, Math.PI / 2]
       },
       // Right forearm
       { 
+        name: 'RightForearm',
         geometry: new THREE.CylinderGeometry(0.04, 0.05, 0.26, 8), 
-        position: [0.5, 1.25, 0],
-        rotation: [0, 0, -Math.PI / 2],
-        bone: 'RightForeArm' 
+        bone: 'RightForeArm',
+        offset: [0.13, 0, 0], // Offset from elbow
+        rotation: [0, 0, -Math.PI / 2]
       },
       // Left hand
       { 
+        name: 'LeftHand',
         geometry: new THREE.BoxGeometry(0.08, 0.04, 0.08), 
-        position: [-0.7, 1.25, 0],
-        bone: 'LeftHand' 
+        bone: 'LeftHand',
+        offset: [-0.04, 0, 0], // Offset from wrist
+        rotation: [0, 0, 0]
       },
       // Right hand
       { 
+        name: 'RightHand',
         geometry: new THREE.BoxGeometry(0.08, 0.04, 0.08), 
-        position: [0.7, 1.25, 0],
-        bone: 'RightHand' 
+        bone: 'RightHand',
+        offset: [0.04, 0, 0], // Offset from wrist
+        rotation: [0, 0, 0]
       },
       // Left thigh
       { 
+        name: 'LeftThigh',
         geometry: new THREE.CylinderGeometry(0.07, 0.06, 0.45, 8), 
-        position: [-0.1, 0.55, 0],
-        bone: 'LeftUpLeg' 
+        bone: 'LeftUpLeg',
+        offset: [0, -0.225, 0], // Offset to center on bone
+        rotation: [0, 0, 0]
       },
       // Right thigh
       { 
+        name: 'RightThigh',
         geometry: new THREE.CylinderGeometry(0.07, 0.06, 0.45, 8), 
-        position: [0.1, 0.55, 0],
-        bone: 'RightUpLeg' 
+        bone: 'RightUpLeg',
+        offset: [0, -0.225, 0], // Offset to center on bone
+        rotation: [0, 0, 0]
       },
       // Left calf
       { 
+        name: 'LeftCalf',
         geometry: new THREE.CylinderGeometry(0.06, 0.05, 0.45, 8), 
-        position: [-0.1, 0.1, 0],
-        bone: 'LeftLeg' 
+        bone: 'LeftLeg',
+        offset: [0, -0.225, 0], // Offset to center on bone
+        rotation: [0, 0, 0]
       },
       // Right calf
       { 
+        name: 'RightCalf',
         geometry: new THREE.CylinderGeometry(0.06, 0.05, 0.45, 8), 
-        position: [0.1, 0.1, 0],
-        bone: 'RightLeg' 
+        bone: 'RightLeg',
+        offset: [0, -0.225, 0], // Offset to center on bone
+        rotation: [0, 0, 0]
       },
       // Left foot
       { 
+        name: 'LeftFoot',
         geometry: new THREE.BoxGeometry(0.08, 0.05, 0.2), 
-        position: [-0.1, -0.15, 0.05],
-        bone: 'LeftFoot' 
+        bone: 'LeftFoot',
+        offset: [0, 0, 0.05], // Offset forward from ankle
+        rotation: [0, 0, 0]
       },
       // Right foot
       { 
+        name: 'RightFoot',
         geometry: new THREE.BoxGeometry(0.08, 0.05, 0.2), 
-        position: [0.1, -0.15, 0.05],
-        bone: 'RightFoot' 
+        bone: 'RightFoot',
+        offset: [0, 0, 0.05], // Offset forward from ankle
+        rotation: [0, 0, 0]
       }
     ];
     
-    // Combine all geometries
+    // Create material
     const material = new THREE.MeshStandardMaterial({
       color: 0x8888ff,
       roughness: 0.7,
       metalness: 0.1
     });
     
-    // Create skinned mesh
-    const positions = [];
-    const normals = [];
-    const uvs = [];
-    const indices = [];
-    const skinIndices = [];
-    const skinWeights = [];
+    // Create a group to hold all body parts
+    this.bodyGroup = new THREE.Group();
     
-    let indexOffset = 0;
-    
-    bodyParts.forEach((part) => {
-      const { geometry, position, rotation = [0, 0, 0], bone } = part;
-      
-      // Get bone index
-      const boneIndex = this.skeleton.bones.findIndex(b => b.name === bone);
-      if (boneIndex === -1) {
-        console.warn(`Bone ${bone} not found in skeleton`);
+    // Create individual meshes for each body part
+    partDefinitions.forEach(part => {
+      // Find the corresponding bone
+      const bone = this.findBoneByName(part.bone);
+      if (!bone) {
+        console.warn(`Bone ${part.bone} not found for part ${part.name}`);
         return;
       }
       
-      // Apply transformations to geometry
-      geometry.translate(position[0], position[1], position[2]);
-      if (rotation[0] || rotation[1] || rotation[2]) {
-        geometry.rotateX(rotation[0]);
-        geometry.rotateY(rotation[1]);
-        geometry.rotateZ(rotation[2]);
-      }
+      // Create the mesh
+      const mesh = new THREE.Mesh(part.geometry, material);
+      mesh.name = part.name;
       
-      // Get geometry attributes
-      const tempPositions = geometry.attributes.position.array;
-      const tempNormals = geometry.attributes.normal.array;
-      const tempUvs = geometry.attributes.uv ? geometry.attributes.uv.array : new Array(tempPositions.length / 3 * 2).fill(0);
-      const tempIndices = geometry.index ? geometry.index.array : Array.from({ length: tempPositions.length / 3 }, (_, i) => i);
+      // Set initial position from bone plus offset
+      mesh.position.set(part.offset[0], part.offset[1], part.offset[2]);
       
-      // Add to combined arrays
-      for (let i = 0; i < tempPositions.length; i += 3) {
-        positions.push(tempPositions[i], tempPositions[i + 1], tempPositions[i + 2]);
-        normals.push(tempNormals[i], tempNormals[i + 1], tempNormals[i + 2]);
-        
-        // Add skinning data - each vertex is fully controlled by one bone
-        skinIndices.push(boneIndex, 0, 0, 0);
-        skinWeights.push(1, 0, 0, 0);
-      }
+      // Apply initial rotation
+      mesh.rotation.set(part.rotation[0], part.rotation[1], part.rotation[2]);
       
-      for (let i = 0; i < tempUvs.length; i += 2) {
-        uvs.push(tempUvs[i], tempUvs[i + 1]);
-      }
+      // Add the mesh to the bone
+      bone.add(mesh);
       
-      for (let i = 0; i < tempIndices.length; i++) {
-        indices.push(tempIndices[i] + indexOffset);
-      }
+      // Store reference to the mesh
+      this.bodyParts.push({
+        name: part.name,
+        mesh: mesh,
+        bone: bone
+      });
       
-      indexOffset += tempPositions.length / 3;
+      console.log(`Created ${part.name} and attached to ${part.bone}`);
     });
     
-    // Create buffer geometry
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
-    geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
-    geometry.setIndex(indices);
+    // Store a reference to the root bone
+    this.rootBone = this.findBoneByName('Root');
     
-    // Create skinned mesh
-    this.mesh = new THREE.SkinnedMesh(geometry, material);
-    this.mesh.add(this.bones['Root']); // Add root bone
-    this.mesh.bind(this.skeleton);
+    // Add the root bone to the scene
+    this.scene.add(this.rootBone);
     
-    // Add to scene
-    this.scene.add(this.mesh);
-    
-    return this.mesh;
+    return this.bodyParts;
   }
   
   /**
+   * Helper method to find a bone by name
+   */
+  findBoneByName(name) {
+    return this.skeleton.bones.find(bone => bone.name === name);
+  }
+  
+/**
    * Apply a pose to the skeleton
    * @param {Object} pose - Pose data with joint rotations
    */
@@ -323,11 +330,22 @@ class GenericHumanoidModel {
       }
     });
     
-    // Update matrices
+    // Force update of all matrices
+    if (this.rootBone) {
+      this.rootBone.updateMatrixWorld(true);
+    }
+    
+    // Update all bones
     this.skeleton.bones.forEach(bone => {
       bone.updateMatrix();
+      bone.updateMatrixWorld(true);
     });
+    
     this.skeleton.update();
+    
+    // Since we're using a direct parent-child relationship between
+    // bones and meshes, we don't need to do anything else.
+    // The meshes will automatically follow their parent bones.
   }
   
   /**
