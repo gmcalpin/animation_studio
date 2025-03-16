@@ -439,6 +439,8 @@ class AnimationSystem {
       }
       
       // Apply the first frame after reset
+this.applyAnimationFrame(0);
+    }, 100);
       this.applyAnimationFrame(0);
     }, 100);
     
