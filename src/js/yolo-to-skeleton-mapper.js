@@ -2,32 +2,17 @@
 // This utility converts YOLO pose detection output to the universal skeleton format
 
 import * as THREE from 'three';
-import { universalSkeleton } from './universal-skeleton.js';
-
-// Export the mapper class
-export { YoloPoseMapper };
+import { universalSkeleton, UniversalSkeletonSystem } from './universal-skeleton.js';
 
 /**
  * Maps YOLO pose detection data to the universal skeleton format
  */
 class YoloPoseMapper {
   constructor() {
-    this.keypoints = [];
+    this.skeletonSystem = new UniversalSkeletonSystem();
     this.confidenceThreshold = 0.5;
+    this.scaleFactor = 0.05; // Scale factor to convert normalized coordinates to skeleton space
     this.keypointMapping = universalSkeleton.poseDetectionMapping.YOLO;
-  }
-  
-  /**
-   * Set the YOLO detection data
-   * @param {Array} keypoints - Array of keypoints from YOLO
-   * @param {Number} imageWidth - Width of the source image
-   * @param {Number} imageHeight - Height of the source image
-   */
-  setDetection(keypoints, imageWidth, imageHeight) {
-    this.keypoints = keypoints;
-    this.imageWidth = imageWidth;
-    this.imageHeight = imageHeight;
-    return this;
   }
   
   /**
@@ -40,193 +25,216 @@ class YoloPoseMapper {
   }
   
   /**
-   * Get 3D position from 2D keypoint
-   * This performs a simple 2D to 3D conversion with estimated depth
-   * @param {Object} keypoint - Keypoint from YOLO
-   * @returns {Array} 3D position [x, y, z]
+   * Process a single YOLO detection into a skeleton pose
+   * @param {Object} detection - YOLO detection with keypoints
+   * @param {Number} imageWidth - Width of the source image
+   * @param {Number} imageHeight - Height of the source image
+   * @param {Boolean} mirrorX - Whether to mirror X coordinates (for front-facing cameras)
+   * @returns {Object} Pose data for skeleton
    */
-  getPositionFromKeypoint(keypoint) {
-    if (!keypoint || keypoint.confidence < this.confidenceThreshold) {
+  processDetection(detection, imageWidth, imageHeight, mirrorX = false) {
+    console.log('Processing YOLO detection', detection);
+    
+    if (!detection || !detection.keypoints || detection.keypoints.length === 0) {
+      console.warn('Invalid or empty detection data');
       return null;
     }
     
-    // Normalize coordinates from image space to -1 to 1 range
-    const x = (keypoint.x / this.imageWidth) * 2 - 1;
-    const y = -((keypoint.y / this.imageHeight) * 2 - 1); // Y is inverted in image space
+    const pose = { joints: {} };
     
-    // Simple mock depth - could be improved with actual depth estimation
-    const z = 0;
-    
-    return [x, y, z];
-  }
-  
-  /**
-   * Calculate the rotation between two joints
-   * @param {Array} joint1Pos - Position of the parent joint
-   * @param {Array} joint2Pos - Position of the child joint
-   * @returns {Array} Quaternion [x, y, z, w]
-   */
-  calculateRotation(joint1Pos, joint2Pos) {
-    if (!joint1Pos || !joint2Pos) {
-      return [0, 0, 0, 1]; // Identity quaternion
-    }
-    
-    // Create direction vector from joint1 to joint2
-    const direction = new THREE.Vector3(
-      joint2Pos[0] - joint1Pos[0],
-      joint2Pos[1] - joint1Pos[1],
-      joint2Pos[2] - joint1Pos[2]
-    ).normalize();
-    
-    // Default direction (usually along the bone's local axis)
-    const defaultDirection = new THREE.Vector3(0, 1, 0);
-    
-    // Create quaternion to rotate from default to target direction
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(
-      defaultDirection,
-      direction
-    );
-    
-    return [quaternion.x, quaternion.y, quaternion.z, quaternion.w];
-  }
-  
-  /**
-   * Estimate the body scale based on keypoints
-   * @returns {Number} Estimated height scale factor
-   */
-  estimateBodyScale() {
-    // Find keypoints for height calculation (e.g., head to foot)
-    const head = this.findKeypoint('nose');
-    const leftFoot = this.findKeypoint('left_ankle');
-    const rightFoot = this.findKeypoint('right_ankle');
-    
-    // Use the foot that's detected with higher confidence
-    const foot = (!leftFoot) ? rightFoot : 
-                (!rightFoot) ? leftFoot :
-                (leftFoot.confidence > rightFoot.confidence) ? leftFoot : rightFoot;
-    
-    if (!head || !foot) {
-      return 1.0; // Default scale if can't calculate
-    }
-    
-    // Calculate pixel height
-    const pixelHeight = Math.abs(foot.y - head.y);
-    
-    // Convert to scale factor (assuming standard height in the universal skeleton)
-    const standardHeight = universalSkeleton.metadata.defaultHeight;
-    const estimatedScale = pixelHeight / (this.imageHeight * 0.7); // Assuming person takes ~70% of image height
-    
-    return estimatedScale;
-  }
-  
-  /**
-   * Find a specific keypoint by name
-   * @param {String} name - Keypoint name
-   * @returns {Object} Keypoint object
-   */
-  findKeypoint(name) {
-    return this.keypoints.find(kp => 
-      kp.name === name && kp.confidence >= this.confidenceThreshold
-    );
-  }
-  
-  /**
-   * Convert YOLO pose detection to universal skeleton animation data
-   * @returns {Object} Animation frame in universal format
-   */
-  toAnimationFrame(frameIndex, timestamp) {
-    const frame = {
-      frameIndex: frameIndex || 0,
-      timestamp: timestamp || 0,
-      joints: {}
-    };
-    
-    // Calculate body scale
-    const scale = this.estimateBodyScale();
-    
-    // Process each keypoint and map to universal skeleton
-    this.keypoints.forEach(keypoint => {
+    // Process each keypoint
+    detection.keypoints.forEach(keypoint => {
+      // Skip low confidence keypoints
       if (keypoint.confidence < this.confidenceThreshold) return;
       
-      // Get target joint name from mapping
+      // Get corresponding skeleton joint name
       const jointName = this.keypointMapping[keypoint.name];
       if (!jointName) return;
       
-      // Get 3D position
-      const position = this.getPositionFromKeypoint(keypoint);
-      if (!position) return;
+      // Convert from image coordinates to skeleton space
+      let x = (keypoint.x / imageWidth - 0.5) * this.scaleFactor;
+      if (mirrorX) x = -x;
       
-      // Store position for root joints
-      if (jointName === 'Hips' || jointName === 'Root') {
-        frame.joints[jointName] = {
-          position: position,
-          rotation: [0, 0, 0, 1] // Default identity quaternion
-        };
-      }
+      // Y is inverted in image coordinates
+      const y = (0.5 - keypoint.y / imageHeight) * this.scaleFactor;
+      
+      // Z coordinate (we don't have depth from 2D pose)
+      const z = 0;
+      
+      // Store position data
+      pose.joints[jointName] = pose.joints[jointName] || {};
+      pose.joints[jointName].position = [x, y, z];
     });
     
-    // Calculate rotations between connected joints
-    // This requires a more complex approach that knows the skeleton structure
-    this.calculateJointRotations(frame);
+    // Calculate derived joint positions not directly detected by YOLO
+    this.calculateDerivedJoints(pose, detection.keypoints, imageWidth, imageHeight);
     
-    return frame;
+    // Calculate joint rotations based on positions
+    this.calculateJointRotations(pose);
+    
+    return pose;
   }
   
   /**
-   * Calculate rotations for all joints based on positions
-   * @param {Object} frame - Animation frame with joint positions
+   * Calculate additional joint positions that are not directly provided by YOLO
+   * @param {Object} pose - Pose with direct joint mappings
+   * @param {Array} keypoints - Original YOLO keypoints
+   * @param {Number} imageWidth - Width of the source image
+   * @param {Number} imageHeight - Height of the source image
    */
-  calculateJointRotations(frame) {
-    // Define joint pairs for rotation calculation
-    const rotationPairs = [
-      // Torso
-      { parent: 'Hips', child: 'Spine', target: 'Hips' },
-      { parent: 'Spine', child: 'Chest', target: 'Spine' },
-      { parent: 'Chest', child: 'Neck', target: 'Chest' },
-      { parent: 'Neck', child: 'Head', target: 'Neck' },
-      
-      // Left arm
-      { parent: 'LeftShoulder', child: 'LeftArm', target: 'LeftShoulder' },
-      { parent: 'LeftArm', child: 'LeftForeArm', target: 'LeftArm' },
-      { parent: 'LeftForeArm', child: 'LeftHand', target: 'LeftForeArm' },
-      
-      // Right arm
-      { parent: 'RightShoulder', child: 'RightArm', target: 'RightShoulder' },
-      { parent: 'RightArm', child: 'RightForeArm', target: 'RightArm' },
-      { parent: 'RightForeArm', child: 'RightHand', target: 'RightForeArm' },
-      
-      // Left leg
-      { parent: 'LeftUpLeg', child: 'LeftLeg', target: 'LeftUpLeg' },
-      { parent: 'LeftLeg', child: 'LeftFoot', target: 'LeftLeg' },
-      
-      // Right leg
-      { parent: 'RightUpLeg', child: 'RightLeg', target: 'RightUpLeg' },
-      { parent: 'RightLeg', child: 'RightFoot', target: 'RightLeg' }
-    ];
-    
-    // Find corresponding keypoints for each joint
-    const jointPositions = {};
-    
-    Object.entries(this.keypointMapping).forEach(([keypointName, jointName]) => {
-      const keypoint = this.findKeypoint(keypointName);
-      if (keypoint) {
-        jointPositions[jointName] = this.getPositionFromKeypoint(keypoint);
+  calculateDerivedJoints(pose, keypoints, imageWidth, imageHeight) {
+    // Create a mapping of keypoint names to their processed positions
+    const keypointMap = {};
+    keypoints.forEach(kp => {
+      if (kp.confidence >= this.confidenceThreshold) {
+        keypointMap[kp.name] = kp;
       }
     });
     
-    // Calculate rotations between connected joints
-    rotationPairs.forEach(({ parent, child, target }) => {
-      if (jointPositions[parent] && jointPositions[child]) {
-        const rotation = this.calculateRotation(
-          jointPositions[parent],
-          jointPositions[child]
-        );
+    // Calculate spine position from shoulders and hips
+    if (keypointMap['left_shoulder'] && keypointMap['right_shoulder'] && 
+        keypointMap['left_hip'] && keypointMap['right_hip']) {
+      
+      // Get midpoint of shoulders
+      const midShoulderX = (keypointMap['left_shoulder'].x + keypointMap['right_shoulder'].x) / 2;
+      const midShoulderY = (keypointMap['left_shoulder'].y + keypointMap['right_shoulder'].y) / 2;
+      
+      // Get midpoint of hips
+      const midHipX = (keypointMap['left_hip'].x + keypointMap['right_hip'].x) / 2;
+      const midHipY = (keypointMap['left_hip'].y + keypointMap['right_hip'].y) / 2;
+      
+      // Calculate spine position (between hips and shoulders)
+      const spineX = (midHipX + midShoulderX) / 2;
+      const spineY = (midHipY + midShoulderY) / 2;
+      
+      // Convert to skeleton space
+      const x = (spineX / imageWidth - 0.5) * this.scaleFactor;
+      const y = (0.5 - spineY / imageHeight) * this.scaleFactor;
+      
+      // Add to pose
+      pose.joints['Spine'] = pose.joints['Spine'] || {};
+      pose.joints['Spine'].position = [x, y, 0];
+      
+      // Calculate chest position (closer to shoulders)
+      const chestX = midShoulderX * 0.7 + midHipX * 0.3;
+      const chestY = midShoulderY * 0.7 + midHipY * 0.3;
+      
+      const chestPosX = (chestX / imageWidth - 0.5) * this.scaleFactor;
+      const chestPosY = (0.5 - chestY / imageHeight) * this.scaleFactor;
+      
+      pose.joints['Chest'] = pose.joints['Chest'] || {};
+      pose.joints['Chest'].position = [chestPosX, chestPosY, 0];
+      
+      // Set Hips at the midpoint of hip keypoints
+      const hipsPosX = (midHipX / imageWidth - 0.5) * this.scaleFactor;
+      const hipsPosY = (0.5 - midHipY / imageHeight) * this.scaleFactor;
+      
+      pose.joints['Hips'] = pose.joints['Hips'] || {};
+      pose.joints['Hips'].position = [hipsPosX, hipsPosY, 0];
+    }
+    
+    // Calculate neck position (between head and shoulders)
+    if (keypointMap['nose'] && keypointMap['left_shoulder'] && keypointMap['right_shoulder']) {
+      const midShoulderX = (keypointMap['left_shoulder'].x + keypointMap['right_shoulder'].x) / 2;
+      const midShoulderY = (keypointMap['left_shoulder'].y + keypointMap['right_shoulder'].y) / 2;
+      
+      // Neck is between nose and mid shoulders
+      const neckX = (keypointMap['nose'].x * 0.3 + midShoulderX * 0.7);
+      const neckY = (keypointMap['nose'].y * 0.3 + midShoulderY * 0.7);
+      
+      const neckPosX = (neckX / imageWidth - 0.5) * this.scaleFactor;
+      const neckPosY = (0.5 - neckY / imageHeight) * this.scaleFactor;
+      
+      pose.joints['Neck'] = pose.joints['Neck'] || {};
+      pose.joints['Neck'].position = [neckPosX, neckPosY, 0];
+    }
+    
+    // Set Root position at the bottom of Hips
+    if (pose.joints['Hips'] && pose.joints['Hips'].position) {
+      pose.joints['Root'] = pose.joints['Root'] || {};
+      pose.joints['Root'].position = [
+        pose.joints['Hips'].position[0],
+        pose.joints['Hips'].position[1] - 0.01,  // Slightly below hips
+        pose.joints['Hips'].position[2]
+      ];
+    }
+  }
+  
+  /**
+   * Calculate rotations for joints based on their positions
+   * @param {Object} pose - Pose with joint positions
+   */
+  calculateJointRotations(pose) {
+    // Define joint chains for rotation calculation
+    const chains = [
+      // Torso chain
+      ['Root', 'Hips', 'Spine', 'Chest', 'Neck', 'Head'],
+      
+      // Left arm chain
+      ['Chest', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand'],
+      
+      // Right arm chain
+      ['Chest', 'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand'],
+      
+      // Left leg chain
+      ['Hips', 'LeftUpLeg', 'LeftLeg', 'LeftFoot'],
+      
+      // Right leg chain
+      ['Hips', 'RightUpLeg', 'RightLeg', 'RightFoot']
+    ];
+    
+    // Process each chain to calculate rotations
+    chains.forEach(chain => {
+      for (let i = 0; i < chain.length - 1; i++) {
+        const parent = chain[i];
+        const child = chain[i + 1];
         
-        if (!frame.joints[target]) {
-          frame.joints[target] = { rotation };
-        } else {
-          frame.joints[target].rotation = rotation;
+        // Skip if we don't have positions for both joints
+        if (!pose.joints[parent] || !pose.joints[parent].position ||
+            !pose.joints[child] || !pose.joints[child].position) {
+          continue;
         }
+        
+        // Calculate the direction vector from parent to child
+        const parentPos = new THREE.Vector3(...pose.joints[parent].position);
+        const childPos = new THREE.Vector3(...pose.joints[child].position);
+        const direction = new THREE.Vector3().subVectors(childPos, parentPos).normalize();
+        
+        // Get the default direction based on skeleton hierarchy
+        let defaultDirection;
+        
+        // Choose default direction based on the joint chain
+        if (chain[0] === 'Root' || chain[0] === 'Hips') {
+          // Spine chain goes up
+          defaultDirection = new THREE.Vector3(0, 1, 0);
+        } else if (parent === 'LeftShoulder' || parent === 'RightShoulder') {
+          // Arms go outward from shoulders
+          defaultDirection = new THREE.Vector3(parent === 'LeftShoulder' ? -1 : 1, 0, 0);
+        } else if (child.includes('Arm') || child.includes('Hand')) {
+          // Forearms continue in arm direction
+          defaultDirection = new THREE.Vector3(parent.includes('Left') ? -1 : 1, 0, 0);
+        } else if (parent.includes('UpLeg') || parent.includes('Leg')) {
+          // Legs go down
+          defaultDirection = new THREE.Vector3(0, -1, 0);
+        } else {
+          // Default up direction
+          defaultDirection = new THREE.Vector3(0, 1, 0);
+        }
+        
+        // Calculate rotation from default direction to actual direction
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromUnitVectors(defaultDirection, direction);
+        
+        // Store the rotation
+        pose.joints[parent] = pose.joints[parent] || {};
+        pose.joints[parent].rotation = [quaternion.x, quaternion.y, quaternion.z, quaternion.w];
+      }
+    });
+    
+    // Set default rotations for joints without calculated rotations
+    Object.keys(pose.joints).forEach(jointName => {
+      if (!pose.joints[jointName].rotation) {
+        pose.joints[jointName].rotation = [0, 0, 0, 1]; // Identity quaternion
       }
     });
   }
@@ -238,19 +246,30 @@ class YoloPoseMapper {
    * @returns {Object} Complete animation data
    */
   processSequence(detections, metadata) {
+    console.log('Processing sequence of', detections.length, 'YOLO detections');
+    
     const frames = [];
     
     detections.forEach((detection, index) => {
-      this.setDetection(
-        detection.keypoints, 
-        metadata.width, 
-        metadata.height
-      );
-      
       const timestamp = index / metadata.fps;
-      const frame = this.toAnimationFrame(index, timestamp);
-      frames.push(frame);
+      
+      try {
+        // For each detection, create a frame with proper joint positions and rotations
+        const pose = this.processDetection(detection, metadata.width, metadata.height);
+        
+        if (pose) {
+          frames.push({
+            frameIndex: index,
+            timestamp: timestamp,
+            joints: pose.joints
+          });
+        }
+      } catch (error) {
+        console.error('Error processing detection at index', index, error);
+      }
     });
+    
+    console.log('Created', frames.length, 'animation frames');
     
     return {
       metadata: {
@@ -262,6 +281,41 @@ class YoloPoseMapper {
       frames
     };
   }
+  
+  /**
+   * Apply a pose to a Universal Skeleton System instance
+   * @param {Object} pose - Pose data with joint positions and rotations
+   * @param {UniversalSkeletonSystem} skeletonSystem - Target skeleton system
+   */
+  applyPoseToSkeleton(pose, skeletonSystem) {
+    if (!pose || !pose.joints) return;
+    
+    skeletonSystem.resetToDefaultPose();
+    skeletonSystem.applyPose(pose);
+    
+    return skeletonSystem;
+  }
+  
+  /**
+   * Process YOLO detection data from the Colab notebook format
+   * @param {Object} yoloData - Data from the Colab notebook
+   * @returns {Object} Animation data in universal format
+   */
+  processYoloData(yoloData) {
+    console.log('Processing YOLO data from Colab notebook format');
+    
+    if (!yoloData || !yoloData.detections || !yoloData.metadata) {
+      console.error('Invalid YOLO data format');
+      return null;
+    }
+    
+    return this.processSequence(yoloData.detections, yoloData.metadata);
+  }
+}
+
+// Export the mapper class
+export { YoloPoseMapper };
+
 /**
    * Process YOLO detection data from the Colab notebook format
    * @param {Object} yoloData - Data from the Colab notebook
