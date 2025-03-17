@@ -283,7 +283,25 @@ export { universalSkeleton, animationDataFormat, modelMappingExample };
  * UniversalSkeletonSystem class for manipulating and working with the skeleton system
  * Provides methods to create, update, and manipulate the skeleton
  */
+// Define simple math utilities to avoid THREE.js dependency
+const skeletonMath = {
+  addVectors: function(v1, v2) {
+    return [v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2]];
+  },
+  multiplyQuaternions: function(q1, q2) {
+    const x1 = q1[0], y1 = q1[1], z1 = q1[2], w1 = q1[3];
+    const x2 = q2[0], y2 = q2[1], z2 = q2[2], w2 = q2[3];
+    return [
+      w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+      w1 * y2 + y1 * w2 + z1 * x2 - x1 * z2,
+      w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2,
+      w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    ];
+  }
+};
+
 class UniversalSkeletonSystem {
+
   constructor() {
     // Use the skeleton definition
     this.definition = universalSkeleton;
