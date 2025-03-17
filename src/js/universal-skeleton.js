@@ -416,21 +416,20 @@ class UniversalSkeletonSystem {
       joint.worldPosition = [...joint.localPosition];
       joint.worldRotation = [...joint.localRotation];
     } else {
-      // Transform using THREE.js for proper math
-      const localPos = new THREE.Vector3(...joint.localPosition);
-      const parentRot = new THREE.Quaternion(...parentWorldRot);
+            // Simplified transforms without THREE.js dependency
       
-      // Apply parent rotation to local position
-      localPos.applyQuaternion(parentRot);
+      // For now, just add positions without rotation (simplified approach)
+      joint.worldPosition = skeletonMath.addVectors(
+        parentWorldPos,
+        joint.localPosition
+      );
       
-      // Add parent position to get world position
-      const worldPos = new THREE.Vector3(...parentWorldPos).add(localPos);
-      joint.worldPosition = [worldPos.x, worldPos.y, worldPos.z];
-      
-      // Combine parent and local rotations
-      const localRot = new THREE.Quaternion(...joint.localRotation);
-      const worldRot = parentRot.clone().multiply(localRot);
-      joint.worldRotation = [worldRot.x, worldRot.y, worldRot.z, worldRot.w];
+      // Combine parent and local rotations using our math helper
+      joint.worldRotation = skeletonMath.multiplyQuaternions(
+        parentWorldRot,
+        joint.localRotation
+      );
+
     }
     
     // Recursively update children
